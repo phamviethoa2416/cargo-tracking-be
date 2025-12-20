@@ -2,24 +2,31 @@ package com.example.cargotracking.modules.user.service
 
 import com.example.cargotracking.common.jwt.JwtManager
 import com.example.cargotracking.common.security.RSAKeyProperties
+import com.example.cargotracking.modules.user.model.dto.request.ForgotPasswordRequest
 import com.example.cargotracking.modules.user.model.dto.request.LoginRequest
 import com.example.cargotracking.modules.user.model.dto.request.RegisterRequest
+import com.example.cargotracking.modules.user.model.dto.request.ResetPasswordRequest
 import com.example.cargotracking.modules.user.model.dto.response.AuthResponse
-import com.example.cargotracking.modules.user.model.dto.response.toResponse
+import com.example.cargotracking.modules.user.model.dto.response.UserResponse
+import com.example.cargotracking.modules.user.model.entity.PasswordResetToken
 import com.example.cargotracking.modules.user.model.entity.RefreshToken
 import com.example.cargotracking.modules.user.model.entity.User
+import com.example.cargotracking.modules.user.repository.PasswordResetTokenRepository
 import com.example.cargotracking.modules.user.repository.RefreshTokenRepository
 import com.example.cargotracking.modules.user.repository.UserRepository
 import jakarta.transaction.Transactional
 import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.stereotype.Service
+import java.security.SecureRandom
 import java.time.Instant
+import java.util.Base64
 import java.util.UUID
 
 @Service
 class AuthService(
     private val userRepository: UserRepository,
     private val refreshTokenRepository: RefreshTokenRepository,
+    private val passwordResetTokenRepository: PasswordResetTokenRepository,
     private val jwtManager: JwtManager,
     private val passwordEncoder: PasswordEncoder,
     private val rsaKeyProperties: RSAKeyProperties
@@ -48,8 +55,6 @@ class AuthService(
         )
 
         val savedUser = userRepository.save(user)
-
-        refreshTokenRepository.revokeAllUserTokens(savedUser.id, Instant.now())
 
         return generateAuthResponse(savedUser)
     }
@@ -111,7 +116,7 @@ class AuthService(
         val refreshEntity = RefreshToken(
             userId = user.id,
             token = refreshToken,
-            expiresAt = decodedRefresh.expiresAtAsInstant(),
+            expiresAt = decodedRefresh.expiresAt.toInstant(),
             revoked = false,
 
         )
@@ -122,11 +127,64 @@ class AuthService(
             .toEpochMilli()
 
         return AuthResponse(
-            user = user.toResponse(),
+            user = UserResponse.from(user),
             accessToken = accessToken,
             refreshToken = refreshToken,
             expiresAt = expiresAt
         )
+    }
+
+    @Transactional
+    fun forgotPassword(request: ForgotPasswordRequest) {
+        val user = userRepository.findByEmail(request.email)
+            .orElse(null)
+
+        if (user != null && user.isActive) {
+            val randomBytes = ByteArray(32)
+            SecureRandom().nextBytes(randomBytes)
+            val token = Base64.getUrlEncoder().withoutPadding().encodeToString(randomBytes)
+            
+            val expiresAt = Instant.now().plusSeconds(3600)
+
+            val resetToken = PasswordResetToken(
+                userId = user.id,
+                token = token,
+                expiresAt = expiresAt,
+                used = false
+            )
+            
+            passwordResetTokenRepository.save(resetToken)
+            
+            // TODO: Send email with reset token link
+            // emailService.sendPasswordResetEmail(user.email, token)
+        }
+    }
+
+    @Transactional
+    fun resetPassword(request: ResetPasswordRequest) {
+        val now = Instant.now()
+        val tokenEntity = passwordResetTokenRepository
+            .findByTokenAndUsedFalseAndExpiresAtAfter(request.token, now)
+            .orElseThrow { IllegalArgumentException("Invalid or expired reset token") }
+
+        if (!tokenEntity.isActive()) {
+            throw IllegalStateException("Reset token is expired or already used")
+        }
+
+        val user = userRepository.findById(tokenEntity.userId)
+            .orElseThrow { NoSuchElementException("User not found") }
+
+        if (!user.isActive) {
+            throw IllegalStateException("User account is disabled")
+        }
+
+        val encodedPassword = passwordEncoder.encode(request.newPassword)
+            ?: throw IllegalStateException("Password encoding failed")
+
+        userRepository.updatePasswordHash(user.id, encodedPassword)
+        passwordResetTokenRepository.markTokenAsUsed(tokenEntity.id)
+
+        refreshTokenRepository.revokeAllUserTokens(user.id, Instant.now())
     }
 }
 

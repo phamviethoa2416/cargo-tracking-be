@@ -24,5 +24,5 @@ data class ChangePasswordRequest(
     val newPassword: String,
 
     @field:NotBlank(message = "Confirm new password must not be blank")
-    val confirmPassword: String,
+    val confirmNewPassword: String,
 )

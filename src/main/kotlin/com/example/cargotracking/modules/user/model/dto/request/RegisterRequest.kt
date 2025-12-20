@@ -40,7 +40,7 @@ data class RegisterRequest(
     val phoneNumber: String? = null,
 
     @field:NotNull(message = "Role must not be null")
-    var role: UserRole,
+    val role: UserRole,
 
     @field:Size(max = 500)
     val address: String? = null
