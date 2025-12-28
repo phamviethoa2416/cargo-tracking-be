@@ -14,21 +14,21 @@ data class UserResponse(
     val role: UserRole,
     val address: String?,
     val isActive: Boolean,
-    val createdAt: Instant
+    val createdAt: Instant?,
+    val updatedAt: Instant?
 ) {
     companion object {
-        fun from(user: User): UserResponse =
-            UserResponse(
-                id = user.id,
-                username = user.username,
-                email = user.email,
-                fullName = user.fullName,
-                phoneNumber = user.phoneNumber,
-                role = user.role,
-                address = user.address,
-                isActive = user.isActive,
-                createdAt = user.createdAt
-                    ?: throw IllegalStateException("User entity must have a createdAt timestamp")
-            )
+        fun from(user: User): UserResponse = UserResponse(
+            id = user.id,
+            username = user.username,
+            email = user.email,
+            fullName = user.fullName,
+            phoneNumber = user.phoneNumber,
+            role = user.role,
+            address = user.address,
+            isActive = user.isActive,
+            createdAt = user.createdAt,
+            updatedAt = user.updatedAt
+        )
     }
 }

@@ -9,15 +9,11 @@ import jakarta.validation.constraints.Size
 @PasswordMatch(
     passwordField = "password",
     confirmPasswordField = "confirmPassword",
-    message = "Confirm password must match password"
+    message = "Passwords do not match"
 )
-data class RegisterRequest(
+data class CustomerRegisterRequest(
     @field:NotBlank(message = "Username is required")
     @field:Size(min = 3, max = 100, message = "Username must be 3-100 characters")
-    @field:Pattern(
-        regexp = "^[a-zA-Z0-9_-]+$",
-        message = "Username can only contain letters, numbers, underscore and dash"
-    )
     val username: String,
 
     @field:NotBlank(message = "Email is required")

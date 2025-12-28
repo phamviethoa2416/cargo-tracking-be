@@ -20,20 +20,20 @@ import java.util.UUID
         Index(name = "idx_device_status", columnList = "status")
     ]
 )
-class Device(
-    id: UUID = UUID.randomUUID(),
+class Device private constructor(
+    id: UUID,
 
-    @Column(name = "hardware_uid", unique = true, nullable = false, length = 255)
-    val hardwareUID: String,
-
-    @Column(name = "device_name", length = 100)
-    val deviceName: String? = null,
-
-    @Column(name = "model", length = 50)
-    val model: String? = null,
+    @Column(name = "hardware_uid", nullable = false, unique = true, length = 255)
+    private var _hardwareUID: String,
 
     @Column(name = "provider_id", nullable = false)
-    val providerId: UUID,
+    private var _providerId: UUID,
+
+    @Column(name = "device_name", length = 100)
+    private var _deviceName: String? = null,
+
+    @Column(name = "model", length = 50)
+    private var _model: String? = null,
 
     @Column(name = "current_shipment_id")
     private var _currentShipmentId: UUID? = null,
@@ -53,7 +53,18 @@ class Device(
 
     @Column(name = "last_seen_at")
     private var _lastSeenAt: Instant? = null
+
 ) : BaseEntity(id) {
+    protected constructor() : this(
+        id = UUID.randomUUID(),
+        _hardwareUID = "",
+        _providerId = UUID.randomUUID()
+    )
+
+    val hardwareUID: String get() = _hardwareUID
+    val providerId: UUID get() = _providerId
+    val deviceName: String? get() = _deviceName
+    val model: String? get() = _model
     val currentShipmentId: UUID? get() = _currentShipmentId
     val batteryLevel: Int? get() = _batteryLevel
     val status: DeviceStatus get() = _status
@@ -61,35 +72,52 @@ class Device(
     val totalTrips: Int get() = _totalTrips
     val lastSeenAt: Instant? get() = _lastSeenAt
 
-    protected constructor() : this(
-        id = UUID.randomUUID(),
-        hardwareUID = "",
-        providerId = UUID.randomUUID()
-    )
-
-    init {
-        validate()
-    }
-
-    override fun validate() {
-        require(hardwareUID.isNotBlank()) {
+    override fun validateInvariants() {
+        check(_hardwareUID.isNotBlank()) {
             "Hardware UID must not be blank"
         }
 
-        require(_totalTrips >= 0) {
-            "Total trips must be a non-negative number."
+        check(_totalTrips >= 0) {
+            "Total trips must be non-negative, got: $_totalTrips"
         }
 
-        _batteryLevel?.let {
-            require(it in 0..100) {
-                "Battery level must be between 0 and 100."
+        _batteryLevel?.let { level ->
+            check(level in 0..100) {
+                "Battery level must be 0-100, got: $level"
             }
         }
 
         if (_status == DeviceStatus.IN_TRANSIT) {
-            require(_currentShipmentId != null) {
-                "Device in transit must have a current shipment ID."
+            check(_currentShipmentId != null) {
+                "IN_TRANSIT device must have shipment ID"
             }
+        }
+    }
+
+    companion object {
+
+        fun create(
+            hardwareUID: String,
+            providerId: UUID,
+            deviceName: String? = null,
+            model: String? = null
+        ): Device {
+            require(hardwareUID.isNotBlank()) {
+                "Hardware UID must not be blank"
+            }
+
+            val device = Device(
+                id = UUID.randomUUID(),
+                _hardwareUID = hardwareUID,
+                _providerId = providerId,
+                _deviceName = deviceName,
+                _model = model,
+                _status = DeviceStatus.AVAILABLE,
+                _totalTrips = 0
+            )
+
+            device.validateInvariants()
+            return device
         }
     }
 
@@ -97,9 +125,12 @@ class Device(
         require(_status == DeviceStatus.AVAILABLE) {
             "Only AVAILABLE device can be assigned to shipment. Current status: $_status"
         }
+        require(shipmentId != UUID(0, 0)) {
+            "Shipment ID must be valid"
+        }
+
         _currentShipmentId = shipmentId
         _status = DeviceStatus.IN_TRANSIT
-        validate()
     }
 
     fun releaseFromShipment() {
@@ -109,64 +140,54 @@ class Device(
         _currentShipmentId = null
         _status = DeviceStatus.AVAILABLE
         _totalTrips += 1
-        validate()
     }
 
-    fun updateStatus(newStatus: DeviceStatus, shipmentId: UUID? = null) {
-        when (newStatus) {
-            DeviceStatus.IN_TRANSIT -> {
-                require(shipmentId != null) {
-                    "Shipment ID is required when setting status to IN_TRANSIT"
-                }
-                _currentShipmentId = shipmentId
-            }
-            DeviceStatus.AVAILABLE -> {
-                // If transitioning from IN_TRANSIT to AVAILABLE, clear shipment and increment trips
-                if (_status == DeviceStatus.IN_TRANSIT) {
-                    _currentShipmentId = null
-                    _totalTrips += 1
-                }
-            }
-            DeviceStatus.MAINTENANCE, DeviceStatus.RETIRED -> {
-                // Clear shipment ID when moving to maintenance or retired
-                if (_status == DeviceStatus.IN_TRANSIT) {
-                    _currentShipmentId = null
-                }
-            }
+    fun retire() {
+        require(_status != DeviceStatus.RETIRED) {
+            "Device is already retired"
         }
-        _status = newStatus
-        validate()
-    }
 
-    fun updateFirmware(version: String?) {
-        version?.let {
-            require(it.isNotBlank() && it.length <= 50) {
-                "Firmware version must be non-blank and not exceed 50 characters."
-            }
-        }
-        _firmwareVersion = version
+        _currentShipmentId = null
+        _status = DeviceStatus.RETIRED
     }
 
     fun updateBatteryLevel(level: Int?) {
         level?.let {
             require(it in 0..100) {
-                "Battery level must be between 0 and 100."
+                "Battery level must be between 0 and 100, got: $it"
             }
         }
         _batteryLevel = level
     }
 
-    fun updateLastSeen(timestamp: Instant) {
-        _lastSeenAt = timestamp
+    fun updateFirmware(version: String?) {
+        version?.let {
+            require(it.isNotBlank() && it.length <= 50) {
+                "Firmware version must be non-blank and at most 50 characters"
+            }
+        }
+        _firmwareVersion = version
     }
 
-    fun recordHeartbeat() {
-        _lastSeenAt = Instant.now()
+    fun updateDeviceName(name: String?) {
+        name?.let {
+            require(it.isNotBlank() && it.length <= 100) {
+                "Device name must be non-blank and at most 100 characters"
+            }
+        }
+        _deviceName = name
     }
 
-    fun isOnline(): Boolean {
-        return lastSeenAt?.let {
-            Instant.now().minusSeconds(5 * 60).isBefore(it)
+    fun recordHeartbeat(at: Instant = Instant.now()) {
+        require(!at.isAfter(Instant.now().plusSeconds(60L))) {
+            "Heartbeat timestamp cannot be in the future (beyond $60 seconds tolerance)"
+        }
+        _lastSeenAt = at
+    }
+
+    fun isOnline(thresholdSeconds: Long = 300): Boolean {
+        return _lastSeenAt?.let {
+            Instant.now().minusSeconds(thresholdSeconds).isBefore(it)
         } == true
     }
 
@@ -179,6 +200,6 @@ class Device(
     override fun hashCode(): Int = id.hashCode()
 
     override fun toString(): String {
-        return "Device(id=$id, hardwareId='$hardwareUID', deviceName=$deviceName, status=$status)"
+        return "Device(id=$id, hardwareUID='$_hardwareUID', status=$_status, provider=$_providerId)"
     }
 }

@@ -7,10 +7,10 @@ import jakarta.servlet.FilterChain
 import jakarta.servlet.http.HttpServletRequest
 import jakarta.servlet.http.HttpServletResponse
 import org.springframework.http.HttpHeaders
-import org.springframework.stereotype.Component
 import org.springframework.security.core.context.SecurityContextHolder
+import org.springframework.stereotype.Component
 import org.springframework.web.filter.OncePerRequestFilter
-import java.util.UUID
+import java.util.*
 
 @Component
 class JwtAuthFilter(
@@ -21,30 +21,34 @@ class JwtAuthFilter(
         response: HttpServletResponse,
         filterChain: FilterChain
     ) {
-        if (SecurityContextHolder.getContext().authentication == null) {
-            val token = extractToken(request)
+        val token = extractToken(request)
 
-            if (token != null) {
-                try {
-                    val decodedJWT = jwtManager.decodeAccessToken(token)
+        if (token != null && SecurityContextHolder.getContext().authentication == null) {
+            try {
+                val decodedJWT = jwtManager.decodeAccessToken(token)
 
-                    val email = decodedJWT.getClaim("email").asString()
-                    val roleStr = decodedJWT.getClaim("role").asString()
-                    val subject = decodedJWT.subject
+                val email = decodedJWT.getClaim("email").asString()
+                    ?: throw IllegalArgumentException("Token missing email claim")
+                val roleStr = decodedJWT.getClaim("role").asString()
+                    ?: throw IllegalArgumentException("Token missing role claim")
+                
+                val principal = UserPrincipal(
+                    userId = UUID.fromString(decodedJWT.subject ?: throw IllegalArgumentException("Token missing subject")),
+                    email = email,
+                    role = UserRole.valueOf(roleStr)
+                )
 
-                    if (!subject.isNullOrBlank() && !email.isNullOrBlank() && !roleStr.isNullOrBlank()) {
-                        val principal = UserPrincipal(
-                            userId = UUID.fromString(subject),
-                            email = email,
-                            role = UserRole.valueOf(roleStr)
-                        )
+                SecurityContextHolder.getContext().authentication =
+                    UserPrincipalAuthToken(principal)
 
-                        val authentication = UserPrincipalAuthToken(principal)
-                        SecurityContextHolder.getContext().authentication = authentication
-                    }
-                } catch (ex: Exception) {
-                    throw (ex)
-                }
+            } catch (ex: Exception) {
+                // Catch all exceptions (JWTVerificationException, IllegalArgumentException, etc.)
+                response.status = HttpServletResponse.SC_UNAUTHORIZED
+                response.contentType = "application/json"
+                response.writer.write(
+                    """{"error":"invalid_token","message":"${ex.message ?: "Invalid token"}"}"""
+                )
+                return
             }
         }
 
@@ -53,8 +57,7 @@ class JwtAuthFilter(
 
     private fun extractToken(req: HttpServletRequest): String? {
         val authHeader = req.getHeader(HttpHeaders.AUTHORIZATION)
-        return if (authHeader != null && authHeader.startsWith("Bearer ")) {
-            authHeader.substring(7)
-        } else null
+        return authHeader?.takeIf { it.startsWith("Bearer ") }
+            ?.substring(7)
     }
 }

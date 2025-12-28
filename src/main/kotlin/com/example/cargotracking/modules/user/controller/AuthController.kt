@@ -1,16 +1,15 @@
 package com.example.cargotracking.modules.user.controller
 
-import com.example.cargotracking.modules.user.model.dto.request.ForgotPasswordRequest
-import com.example.cargotracking.modules.user.model.dto.request.LoginRequest
-import com.example.cargotracking.modules.user.model.dto.request.RefreshTokenRequest
-import com.example.cargotracking.modules.user.model.dto.request.RegisterRequest
-import com.example.cargotracking.modules.user.model.dto.request.ResetPasswordRequest
+import com.example.cargotracking.modules.user.model.dto.request.*
 import com.example.cargotracking.modules.user.model.dto.response.AuthResponse
 import com.example.cargotracking.modules.user.model.dto.response.SuccessResponse
+import com.example.cargotracking.modules.user.model.dto.response.TokenResponse
+import com.example.cargotracking.modules.user.model.dto.response.UserResponse
 import com.example.cargotracking.modules.user.service.AuthService
 import jakarta.validation.Valid
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
+import org.springframework.security.access.prepost.PreAuthorize
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
@@ -23,20 +22,35 @@ class AuthController(
 ) {
 
     @PostMapping("/register")
-    fun register(@Valid @RequestBody request: RegisterRequest): ResponseEntity<AuthResponse> {
-        val response = authService.register(request)
+    fun registerCustomer(
+        @Valid @RequestBody request: CustomerRegisterRequest
+    ): ResponseEntity<AuthResponse> {
+        val response = authService.registerCustomer(request)
+        return ResponseEntity.status(HttpStatus.CREATED).body(response)
+    }
+
+    @PostMapping("/admin/users")
+    @PreAuthorize("hasRole('ADMIN')")
+    fun createUserByAdmin(
+        @Valid @RequestBody request: AdminCreateUserRequest
+    ): ResponseEntity<UserResponse> {
+        val response = authService.createUserByAdmin(request)
         return ResponseEntity.status(HttpStatus.CREATED).body(response)
     }
 
     @PostMapping("/login")
-    fun login(@Valid @RequestBody request: LoginRequest): ResponseEntity<AuthResponse> {
+    fun login(
+        @Valid @RequestBody request: LoginRequest
+    ): ResponseEntity<AuthResponse> {
         val response = authService.login(request)
         return ResponseEntity.ok(response)
     }
 
     @PostMapping("/refresh")
-    fun refreshToken(@Valid @RequestBody request: RefreshTokenRequest): ResponseEntity<AuthResponse> {
-        val response = authService.refreshToken(request.refreshToken)
+    fun refreshToken(
+        @Valid @RequestBody request: RefreshTokenRequest
+    ): ResponseEntity<TokenResponse> {
+        val response = authService.refreshToken(request)
         return ResponseEntity.ok(response)
     }
 
@@ -48,11 +62,21 @@ class AuthController(
         )
     }
 
-    @PostMapping("/resetPassword")
-    fun resetPassword(@Valid @RequestBody request: ResetPasswordRequest): ResponseEntity<SuccessResponse> {
-        authService.resetPassword(request)
+    @PostMapping("/reset-password")
+    fun resetPassword(
+        @Valid @RequestBody request: ResetPasswordRequest
+    ): ResponseEntity<SuccessResponse> {
+        val response = authService.resetPassword(request)
+        return ResponseEntity.ok(response)
+    }
+
+    @PostMapping("/logout")
+    fun logout(
+        @Valid @RequestBody request: RefreshTokenRequest
+    ): ResponseEntity<SuccessResponse> {
+        authService.logout(request.refreshToken)
         return ResponseEntity.ok(
-            SuccessResponse.of("Password has been reset successfully")
+            SuccessResponse.of("Logged out successfully")
         )
     }
 }

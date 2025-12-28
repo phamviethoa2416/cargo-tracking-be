@@ -7,22 +7,22 @@ import jakarta.validation.constraints.Size
 
 @PasswordMatch(
     passwordField = "newPassword",
-    confirmPasswordField = "confirmNewPassword",
+    confirmPasswordField = "confirmPassword",
     message = "Confirm password must match new password"
 )
 @PasswordNotMatch(
-    oldPasswordField = "oldPassword",
+    oldPasswordField = "currentPassword",
     newPasswordField = "newPassword",
     message = "New password must not match old password"
 )
 data class ChangePasswordRequest(
-    @field:NotBlank(message = "Old password must not be blank")
-    val oldPassword: String,
+    @field:NotBlank(message = "Current password is required")
+    val currentPassword: String,
 
-    @field:NotBlank(message = "New password must not be blank")
-    @field:Size(message = "New password must be at least 8 characters long", min = 8)
+    @field:NotBlank(message = "New password is required")
+    @field:Size(min = 8, message = "New password must be at least 8 characters")
     val newPassword: String,
 
-    @field:NotBlank(message = "Confirm new password must not be blank")
-    val confirmNewPassword: String,
+    @field:NotBlank(message = "Password confirmation is required")
+    val confirmPassword: String
 )

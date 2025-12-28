@@ -17,6 +17,6 @@ data class ResetPasswordRequest(
     @field:Size(min = 8, message = "Password must be at least 8 characters")
     val newPassword: String,
 
-    @field:NotBlank(message = "Please confirm your new password")
+    @field:NotBlank(message = "Password confirmation is required")
     val confirmPassword: String
 )

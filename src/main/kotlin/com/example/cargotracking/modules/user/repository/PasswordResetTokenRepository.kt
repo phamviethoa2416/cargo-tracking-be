@@ -13,7 +13,10 @@ import java.util.UUID
 interface PasswordResetTokenRepository : JpaRepository<PasswordResetToken, UUID> {
     fun findByTokenAndUsedFalseAndExpiresAtAfter(token: String, now: Instant): Optional<PasswordResetToken>
 
+    fun findByToken(token: String): Optional<PasswordResetToken>
+    fun findAllByUserId(userId: UUID): List<PasswordResetToken>
+
     @Modifying
-    @Query("UPDATE PasswordResetToken t SET t.used = true WHERE t.id = :tokenId")
-    fun markTokenAsUsed(tokenId: UUID): Int
+    @Query("DELETE FROM PasswordResetToken t WHERE t._expiresAt < :now")
+    fun deleteExpiredTokens(now: Instant): Int
 }

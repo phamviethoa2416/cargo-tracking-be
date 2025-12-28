@@ -10,9 +10,11 @@ import com.example.cargotracking.modules.user.service.UserService
 import jakarta.validation.Valid
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
+import org.springframework.security.access.prepost.PreAuthorize
 import org.springframework.security.core.Authentication
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
+import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.PutMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
@@ -48,10 +50,8 @@ class UserController(
         @Valid @RequestBody request: ChangePasswordRequest
     ): ResponseEntity<SuccessResponse> {
         val principal = authentication.principal as UserPrincipal
-        userService.changePassword(principal.userId, request)
-        return ResponseEntity.ok(
-            SuccessResponse.of("Password has been changed successfully")
-        )
+        val response = userService.changePassword(principal.userId, request)
+        return ResponseEntity.ok(response)
     }
 
     @GetMapping("/{id}")
@@ -70,16 +70,33 @@ class UserController(
     }
 
     @GetMapping
-    fun getAllUsers(authentication: Authentication): ResponseEntity<List<UserResponse>> {
-        val principal = authentication.principal as UserPrincipal
-
-        if (principal.role != UserRole.ADMIN) {
-            return ResponseEntity.status(HttpStatus.FORBIDDEN).build()
-        }
-        
+    @PreAuthorize("hasRole('ADMIN')")
+    fun getAllUsers(): ResponseEntity<List<UserResponse>> {
         val users = userService.getAllUsers()
-        val userResponses = users.map { UserResponse.from(it) }
-        return ResponseEntity.ok(userResponses)
+        return ResponseEntity.ok(users)
+    }
+
+    @GetMapping("/role/{role}")
+    @PreAuthorize("hasRole('ADMIN')")
+    fun getUsersByRole(@PathVariable role: UserRole): ResponseEntity<List<UserResponse>> {
+        val users = userService.getUsersByRole(role)
+        return ResponseEntity.ok(users)
+    }
+
+    @PostMapping("/{id}/deactivate")
+    @PreAuthorize("hasRole('ADMIN')")
+    fun deactivateUser(
+        @PathVariable id: UUID
+    ): ResponseEntity<SuccessResponse> {
+        val response = userService.deactivateUser(id)
+        return ResponseEntity.ok(response)
+    }
+
+    @PostMapping("/{id}/activate")
+    @PreAuthorize("hasRole('ADMIN')")
+    fun activateUser(@PathVariable id: UUID): ResponseEntity<SuccessResponse> {
+        val response = userService.activateUser(id)
+        return ResponseEntity.ok(response)
     }
 }
 

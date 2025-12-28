@@ -9,6 +9,7 @@ class UserPrincipalAuthToken(
     listOf(SimpleGrantedAuthority("ROLE_${principal.role.name}"))
 ) {
     init { isAuthenticated = true; }
+    override fun getName(): String = principal.email
     override fun getCredentials(): Any? = null
     override fun getPrincipal(): UserPrincipal = principal
 }

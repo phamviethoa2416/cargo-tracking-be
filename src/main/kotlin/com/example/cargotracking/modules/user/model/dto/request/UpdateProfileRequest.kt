@@ -4,7 +4,7 @@ import jakarta.validation.constraints.Pattern
 import jakarta.validation.constraints.Size
 
 data class UpdateProfileRequest(
-    @field:Size(min = 2, max = 255, message = "Full name must be between 2 and 255 characters")
+    @field:Size(min = 2, max = 255, message = "Full name must be 2-255 characters")
     val fullName: String? = null,
 
     @field:Pattern(

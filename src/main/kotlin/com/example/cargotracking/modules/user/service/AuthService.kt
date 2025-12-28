@@ -2,15 +2,15 @@ package com.example.cargotracking.modules.user.service
 
 import com.example.cargotracking.common.jwt.JwtManager
 import com.example.cargotracking.common.security.RSAKeyProperties
-import com.example.cargotracking.modules.user.model.dto.request.ForgotPasswordRequest
-import com.example.cargotracking.modules.user.model.dto.request.LoginRequest
-import com.example.cargotracking.modules.user.model.dto.request.RegisterRequest
-import com.example.cargotracking.modules.user.model.dto.request.ResetPasswordRequest
+import com.example.cargotracking.modules.user.model.dto.request.*
 import com.example.cargotracking.modules.user.model.dto.response.AuthResponse
+import com.example.cargotracking.modules.user.model.dto.response.SuccessResponse
+import com.example.cargotracking.modules.user.model.dto.response.TokenResponse
 import com.example.cargotracking.modules.user.model.dto.response.UserResponse
 import com.example.cargotracking.modules.user.model.entity.PasswordResetToken
 import com.example.cargotracking.modules.user.model.entity.RefreshToken
 import com.example.cargotracking.modules.user.model.entity.User
+import com.example.cargotracking.modules.user.model.types.UserRole
 import com.example.cargotracking.modules.user.repository.PasswordResetTokenRepository
 import com.example.cargotracking.modules.user.repository.RefreshTokenRepository
 import com.example.cargotracking.modules.user.repository.UserRepository
@@ -19,8 +19,7 @@ import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.stereotype.Service
 import java.security.SecureRandom
 import java.time.Instant
-import java.util.Base64
-import java.util.UUID
+import java.util.*
 
 @Service
 class AuthService(
@@ -33,30 +32,42 @@ class AuthService(
 ) {
 
     @Transactional
-    fun register(request: RegisterRequest): AuthResponse {
-        if (userRepository.existsByEmail(request.email)) {
-            throw IllegalStateException("Email is already in use")
-        }
-        if (userRepository.existsByUsername(request.username)) {
-            throw IllegalStateException("Username is already taken")
-        }
+    fun registerCustomer(request: CustomerRegisterRequest): AuthResponse {
+        validateUserDoesNotExist(request.username, request.email)
 
-        val encodedPassword = passwordEncoder.encode(request.password)
-            ?: throw IllegalStateException("Password encoding failed")
-
-        val user = User(
+        val user = User.create(
             username = request.username,
             email = request.email,
-            passwordHash = encodedPassword,
+            passwordHash = encodePassword(request.password),
             fullName = request.fullName,
+            role = UserRole.CUSTOMER,
             phoneNumber = request.phoneNumber,
+            address = request.address
+        )
+
+        val savedUser = userRepository.save(user)
+        return generateAuthResponse(savedUser)
+    }
+
+    @Transactional
+    fun createUserByAdmin(request: AdminCreateUserRequest): UserResponse {
+        validateUserDoesNotExist(request.username, request.email)
+
+        val tempPassword = generateTemporaryPassword()
+
+        val user = User.create(
+            username = request.username,
+            email = request.email,
+            passwordHash = encodePassword(tempPassword),
+            fullName = request.fullName,
             role = request.role,
+            phoneNumber = request.phoneNumber,
             address = request.address
         )
 
         val savedUser = userRepository.save(user)
 
-        return generateAuthResponse(savedUser)
+        return UserResponse.from(savedUser)
     }
 
     @Transactional
@@ -72,72 +83,54 @@ class AuthService(
             throw IllegalArgumentException("Invalid email or password")
         }
 
-        refreshTokenRepository.revokeAllUserTokens(user.id, Instant.now())
+        revokeAllUserTokens(user.id)
 
         return generateAuthResponse(user)
     }
 
     @Transactional
-    fun refreshToken(refreshToken: String): AuthResponse {
-        val tokenEntity = refreshTokenRepository.findByToken(refreshToken)
-            .orElseThrow { IllegalArgumentException("Invalid refresh token") }
+    fun refreshToken(request: RefreshTokenRequest): TokenResponse {
+        val tokenEntity = refreshTokenRepository.findByToken(request.refreshToken)
+            .orElseThrow { RuntimeException("Invalid refresh token") }
 
-        if (!tokenEntity.isActive()) {
-            throw IllegalStateException("Refresh token is expired or revoked")
+        if (!tokenEntity.isValid()) {
+            throw RuntimeException("Refresh token is expired or revoked")
         }
 
-        val decoded = jwtManager.decodeRefreshToken(refreshToken)
-        val subject = decoded.subject ?: throw IllegalStateException("Invalid token subject")
+        val decoded = jwtManager.decodeRefreshToken(request.refreshToken)
+        val subject = decoded.subject ?: throw RuntimeException("Invalid token subject")
 
         val userId = UUID.fromString(subject)
 
         if (tokenEntity.userId != userId) {
-            throw IllegalStateException("Refresh token does not belong to this user")
+            throw RuntimeException("Refresh token does not belong to this user")
         }
 
         val user = userRepository.findById(userId)
-            .orElseThrow { NoSuchElementException("User not found") }
+            .orElseThrow { RuntimeException("User not found") }
 
         if (!user.isActive) {
-            throw IllegalStateException("User account is disabled")
+            throw RuntimeException("User account is disabled")
         }
 
-        refreshTokenRepository.revokeAllUserTokens(user.id, Instant.now())
+        tokenEntity.revoke()
+        refreshTokenRepository.save(tokenEntity)
 
-        return generateAuthResponse(user)
+        return generateTokenResponse(user)
     }
 
-    private fun generateAuthResponse(user: User): AuthResponse {
-        val accessToken = jwtManager.issueAccessToken(user.id, user.email, user.role)
-        val refreshToken = jwtManager.issueRefreshToken(user.id)
-
-        val decodedRefresh = jwtManager.decodeRefreshToken(refreshToken)
-
-        val refreshEntity = RefreshToken(
-            userId = user.id,
-            token = refreshToken,
-            expiresAt = decodedRefresh.expiresAt.toInstant(),
-            revoked = false,
-
-        )
-        refreshTokenRepository.save(refreshEntity)
-
-        val expiresAt = Instant.now()
-            .plusMillis(rsaKeyProperties.accessTokenExpiration)
-            .toEpochMilli()
-
-        return AuthResponse(
-            user = UserResponse.from(user),
-            accessToken = accessToken,
-            refreshToken = refreshToken,
-            expiresAt = expiresAt
-        )
+    @Transactional
+    fun logout(refreshToken: String) {
+        refreshTokenRepository.findByToken(refreshToken)
+            .ifPresent { token ->
+                token.revoke()
+                refreshTokenRepository.save(token)
+            }
     }
 
     @Transactional
     fun forgotPassword(request: ForgotPasswordRequest) {
-        val user = userRepository.findByEmail(request.email)
-            .orElse(null)
+        val user = userRepository.findByEmail(request.email).orElse(null)
 
         if (user != null && user.isActive) {
             val randomBytes = ByteArray(32)
@@ -146,26 +139,21 @@ class AuthService(
             
             val expiresAt = Instant.now().plusSeconds(3600)
 
-            val resetToken = PasswordResetToken(
+            val resetToken = PasswordResetToken.create(
                 userId = user.id,
                 token = token,
-                expiresAt = expiresAt,
-                used = false
+                expiresAt = expiresAt
             )
             
             passwordResetTokenRepository.save(resetToken)
-            
-            // TODO: Send email with reset token link
-            // emailService.sendPasswordResetEmail(user.email, token)
         }
     }
 
     @Transactional
-    fun resetPassword(request: ResetPasswordRequest) {
-        val now = Instant.now()
+    fun resetPassword(request: ResetPasswordRequest): SuccessResponse {
         val tokenEntity = passwordResetTokenRepository
-            .findByTokenAndUsedFalseAndExpiresAtAfter(request.token, now)
-            .orElseThrow { IllegalArgumentException("Invalid or expired reset token") }
+            .findByTokenAndUsedFalseAndExpiresAtAfter(request.token, Instant.now())
+            .orElseThrow { RuntimeException("Invalid or expired reset token") }
 
         if (!tokenEntity.isActive()) {
             throw IllegalStateException("Reset token is expired or already used")
@@ -175,16 +163,105 @@ class AuthService(
             .orElseThrow { NoSuchElementException("User not found") }
 
         if (!user.isActive) {
-            throw IllegalStateException("User account is disabled")
+            throw RuntimeException("User account is disabled")
         }
 
-        val encodedPassword = passwordEncoder.encode(request.newPassword)
+        user.updatePassword(encodePassword(request.newPassword))
+        userRepository.save(user)
+
+        tokenEntity.markAsUsed()
+        passwordResetTokenRepository.save(tokenEntity)
+
+        revokeAllUserTokens(user.id)
+
+        return SuccessResponse(
+            message = "Password has been reset successfully. Please login with your new password."
+        )
+    }
+
+    private fun validateUserDoesNotExist(username: String, email: String) {
+        if (userRepository.existsByUsername(username)) {
+            throw RuntimeException("Username is already taken")
+        }
+        if (userRepository.existsByEmail(email)) {
+            throw RuntimeException("Email is already in use")
+        }
+    }
+
+    private fun generateTemporaryPassword(): String {
+        val chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%"
+        val random = SecureRandom()
+        return (1..12)
+            .map { chars[random.nextInt(chars.length)] }
+            .joinToString("")
+    }
+
+    private fun revokeAllUserTokens(userId: UUID) {
+        val activeTokens = refreshTokenRepository.findByUserIdAndRevoked(userId, false)
+        activeTokens.forEach { it.revoke() }
+        refreshTokenRepository.saveAll(activeTokens)
+    }
+
+    private fun encodePassword(password: String): String {
+        return passwordEncoder.encode(password)
             ?: throw IllegalStateException("Password encoding failed")
+    }
 
-        userRepository.updatePasswordHash(user.id, encodedPassword)
-        passwordResetTokenRepository.markTokenAsUsed(tokenEntity.id)
+    private fun generateAuthResponse(user: User): AuthResponse {
+        val accessToken = jwtManager.issueAccessToken(user.id, user.email, user.role)
+        val refreshToken = jwtManager.issueRefreshToken(user.id)
 
-        refreshTokenRepository.revokeAllUserTokens(user.id, Instant.now())
+        val decodedRefresh = jwtManager.decodeRefreshToken(refreshToken)
+
+        val refreshTokenExpiresAt = decodedRefresh.expiresAt?.toInstant()
+            ?: throw IllegalStateException("Refresh token missing expiration")
+
+        val refreshEntity = RefreshToken.create(
+            userId = user.id,
+            token = refreshToken,
+            expiresAt = refreshTokenExpiresAt
+        )
+        refreshTokenRepository.save(refreshEntity)
+
+        val expiresIn = rsaKeyProperties.accessTokenExpiration / 1000
+        val expiresAt = Instant.now().plusSeconds(expiresIn)
+
+        return AuthResponse(
+            user = UserResponse.from(user),
+            accessToken = accessToken,
+            refreshToken = refreshToken,
+            tokenType = "Bearer",
+            expiresIn = expiresIn,
+            expiresAt = expiresAt
+        )
+    }
+
+    private fun generateTokenResponse(user: User): TokenResponse {
+        val accessToken = jwtManager.issueAccessToken(user.id, user.email, user.role)
+        val refreshToken = jwtManager.issueRefreshToken(user.id)
+
+        val decodedRefresh = jwtManager.decodeRefreshToken(refreshToken)
+
+        val refreshTokenExpiresAt = decodedRefresh.expiresAt?.toInstant()
+            ?: throw IllegalStateException("Refresh token missing expiration")
+
+        val refreshEntity = RefreshToken.create(
+            userId = user.id,
+            token = refreshToken,
+            expiresAt = refreshTokenExpiresAt
+        )
+        refreshTokenRepository.save(refreshEntity)
+
+        val expiresIn = rsaKeyProperties.accessTokenExpiration / 1000
+        val expiresAt = Instant.now().plusSeconds(expiresIn)
+
+        return TokenResponse(
+            accessToken = accessToken,
+            refreshToken = refreshToken,
+            tokenType = "Bearer",
+            expiresIn = expiresIn,
+            expiresAt = expiresAt
+        )
     }
 }
 

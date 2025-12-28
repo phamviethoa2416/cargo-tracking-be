@@ -17,21 +17,16 @@ class SecurityConfig(
     private val jwtAuthFilter: JwtAuthFilter
 ) {
     @Bean
-    fun filterChain(http: HttpSecurity): SecurityFilterChain {
+    fun filterChain(http: HttpSecurity): SecurityFilterChain =
         http
             .csrf { it.disable() }
             .sessionManagement { it.sessionCreationPolicy(SessionCreationPolicy.STATELESS) }
-            .authorizeHttpRequests { auth ->
-                auth
-                    .requestMatchers(
-                        "/api/auth/**",
-                    ).permitAll()
-                    .anyRequest().authenticated()
+            .authorizeHttpRequests {
+                it.requestMatchers("/api/auth/**").permitAll()
+                it.anyRequest().authenticated()
             }
             .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter::class.java)
-
-        return http.build()
-    }
+            .build()
 
     @Bean
     fun passwordEncoder(): PasswordEncoder = BCryptPasswordEncoder()
