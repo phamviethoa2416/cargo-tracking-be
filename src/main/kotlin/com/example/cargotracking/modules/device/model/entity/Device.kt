@@ -178,17 +178,58 @@ class Device private constructor(
         _deviceName = name
     }
 
-    fun recordHeartbeat(at: Instant = Instant.now()) {
-        require(!at.isAfter(Instant.now().plusSeconds(60L))) {
-            "Heartbeat timestamp cannot be in the future (beyond $60 seconds tolerance)"
+    fun updateModel(model: String?) {
+        model?.let {
+            require(it.isNotBlank() && it.length <= 50) {
+                "Model must be non-blank and at most 50 characters"
+            }
         }
-        _lastSeenAt = at
+        _model = model
     }
 
     fun isOnline(thresholdSeconds: Long = 300): Boolean {
         return _lastSeenAt?.let {
             Instant.now().minusSeconds(thresholdSeconds).isBefore(it)
         } == true
+    }
+
+    fun updateStatus(newStatus: DeviceStatus, shipmentId: UUID? = null) {
+        when (newStatus) {
+            DeviceStatus.IN_TRANSIT -> {
+                require(shipmentId != null) {
+                    "Shipment ID is required when setting status to IN_TRANSIT"
+                }
+                require(shipmentId != UUID(0, 0)) {
+                    "Shipment ID must be valid"
+                }
+                require(_status == DeviceStatus.AVAILABLE) {
+                    "Only AVAILABLE device can be set to IN_TRANSIT. Current status: $_status"
+                }
+                _currentShipmentId = shipmentId
+                _status = newStatus
+            }
+            DeviceStatus.AVAILABLE -> {
+                require(_status == DeviceStatus.IN_TRANSIT) {
+                    "Only IN_TRANSIT device can be set to AVAILABLE. Current status: $_status"
+                }
+                _currentShipmentId = null
+                _status = newStatus
+                _totalTrips += 1
+            }
+            DeviceStatus.MAINTENANCE -> {
+                require(_status != DeviceStatus.IN_TRANSIT) {
+                    "Cannot set IN_TRANSIT device to MAINTENANCE. Release from shipment first."
+                }
+                _status = newStatus
+            }
+            DeviceStatus.RETIRED -> {
+                require(_status != DeviceStatus.IN_TRANSIT) {
+                    "Cannot set IN_TRANSIT device to RETIRED. Release from shipment first."
+                }
+                _currentShipmentId = null
+                _status = newStatus
+            }
+        }
     }
 
     override fun equals(other: Any?): Boolean {

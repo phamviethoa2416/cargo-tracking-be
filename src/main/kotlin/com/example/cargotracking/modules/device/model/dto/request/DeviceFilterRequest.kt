@@ -5,7 +5,7 @@ import java.util.UUID
 
 data class DeviceFilterRequest(
     val status: DeviceStatus? = null,
-    val ownerId: UUID? = null,
+    val providerId: UUID? = null,
     val minBattery: Int? = null,
     val maxBattery: Int? = null,
     val isOffline: Boolean? = null,

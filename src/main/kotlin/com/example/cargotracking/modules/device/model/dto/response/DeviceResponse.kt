@@ -10,16 +10,16 @@ data class DeviceResponse(
     val hardwareUid: String,
     val deviceName: String?,
     val model: String?,
-    val providerId: UUID?,
+    val providerId: UUID,
     val currentShipmentId: UUID?,
     val status: DeviceStatus,
     val firmwareVersion: String?,
     val batteryLevel: Int?,
-    val totalTrips: Int?,
+    val totalTrips: Int,
     val lastSeenAt: Instant?,
     val isOnline: Boolean,
-    val createdAt: Instant,
-    val updatedAt: Instant
+    val createdAt: Instant?,
+    val updatedAt: Instant?
 ) {
     companion object {
         fun from(device: Device): DeviceResponse {
@@ -36,10 +36,8 @@ data class DeviceResponse(
                 totalTrips = device.totalTrips,
                 lastSeenAt = device.lastSeenAt,
                 isOnline = device.isOnline(),
-                createdAt = device.createdAt
-                    ?: throw IllegalStateException("Device entity must have a createdAt timestamp"),
+                createdAt = device.createdAt,
                 updatedAt = device.updatedAt
-                    ?: throw IllegalStateException("Device entity must have an updatedAt timestamp")
             )
         }
     }

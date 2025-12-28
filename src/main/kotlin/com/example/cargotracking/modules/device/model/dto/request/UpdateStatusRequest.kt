@@ -5,7 +5,7 @@ import jakarta.validation.constraints.NotNull
 import java.util.UUID
 
 data class UpdateStatusRequest(
-    @field:NotNull
+    @field:NotNull(message = "Status is required")
     val status: DeviceStatus,
     
     val shipmentId: UUID? = null
