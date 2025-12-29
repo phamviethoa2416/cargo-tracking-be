@@ -1,6 +1,7 @@
 package com.example.cargotracking.common.security
 
 import com.example.cargotracking.common.jwt.JwtAuthFilter
+import org.springframework.beans.factory.annotation.Value
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.security.config.annotation.web.builders.HttpSecurity
@@ -10,15 +11,37 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder
 import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.security.web.SecurityFilterChain
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter
+import org.springframework.web.cors.CorsConfiguration
+import org.springframework.web.cors.CorsConfigurationSource
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource
 
 @Configuration
 @EnableWebSecurity
 class SecurityConfig(
-    private val jwtAuthFilter: JwtAuthFilter
+    private val jwtAuthFilter: JwtAuthFilter,
+
+    @Value("\${cors.allowed-origins:http://localhost:3000,http://localhost:5173}")
+    private val allowedOrigins: String,
+
+    @Value("\${cors.allowed-methods:GET,POST,PUT,PATCH,DELETE,OPTIONS}")
+    private val allowedMethods: String,
+
+    @Value("\${cors.allowed-headers:*}")
+    private val allowedHeaders: String,
+
+    @Value("\${cors.exposed-headers:Authorization,Content-Disposition}")
+    private val exposedHeaders: String,
+
+    @Value("\${cors.allow-credentials:true}")
+    private val allowCredentials: Boolean,
+
+    @Value("\${cors.max-age:3600}")
+    private val maxAge: Long
 ) {
     @Bean
     fun filterChain(http: HttpSecurity): SecurityFilterChain =
         http
+            .cors { it.configurationSource(corsConfigurationSource()) }
             .csrf { it.disable() }
             .sessionManagement { it.sessionCreationPolicy(SessionCreationPolicy.STATELESS) }
             .authorizeHttpRequests {
@@ -27,6 +50,26 @@ class SecurityConfig(
             }
             .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter::class.java)
             .build()
+
+    @Bean
+    fun corsConfigurationSource(): CorsConfigurationSource {
+        val configuration = CorsConfiguration().apply {
+            allowedOrigins = this@SecurityConfig.allowedOrigins.split(",").map { it.trim() }
+            allowedMethods = this@SecurityConfig.allowedMethods.split(",").map { it.trim() }
+            allowedHeaders = if (this@SecurityConfig.allowedHeaders == "*") {
+                listOf("*")
+            } else {
+                this@SecurityConfig.allowedHeaders.split(",").map { it.trim() }
+            }
+            exposedHeaders = this@SecurityConfig.exposedHeaders.split(",").map { it.trim() }
+            allowCredentials = this@SecurityConfig.allowCredentials
+            maxAge = this@SecurityConfig.maxAge
+        }
+
+        return UrlBasedCorsConfigurationSource().apply {
+            registerCorsConfiguration("/api/**", configuration)
+        }
+    }
 
     @Bean
     fun passwordEncoder(): PasswordEncoder = BCryptPasswordEncoder()
