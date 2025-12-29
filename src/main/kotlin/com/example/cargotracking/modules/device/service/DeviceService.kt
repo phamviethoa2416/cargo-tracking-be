@@ -12,10 +12,10 @@ import com.example.cargotracking.modules.device.repository.DeviceRepository
 import com.example.cargotracking.modules.device.validation.DeviceOwnershipValidator
 import com.example.cargotracking.modules.device.validation.DeviceStatusValidator
 import com.example.cargotracking.modules.user.model.types.UserRole
-import jakarta.transaction.Transactional
 import org.springframework.data.domain.PageRequest
 import org.springframework.data.domain.Sort
 import org.springframework.stereotype.Service
+import org.springframework.transaction.annotation.Transactional
 import java.time.Instant
 import java.util.UUID
 
@@ -47,7 +47,7 @@ class DeviceService(
         return DeviceResponse.from(deviceRepository.save(device))
     }
 
-    @Transactional
+    @Transactional(readOnly = true)
     fun getDeviceById(id: UUID, currentUserId: UUID, currentUserRole: UserRole): Device {
         val device = deviceRepository.findById(id)
             .orElseThrow { NoSuchElementException("Device not found with id: $id") }
@@ -56,7 +56,7 @@ class DeviceService(
         return device
     }
 
-    @Transactional
+    @Transactional(readOnly = true)
     fun getDeviceByHardwareUID(hardwareUID: String, currentUserId: UUID, currentUserRole: UserRole): Device {
         val device = deviceRepository.findByHardwareUID(hardwareUID)
             ?: throw NoSuchElementException("Device not found with hardware UID: $hardwareUID")
@@ -65,7 +65,7 @@ class DeviceService(
         return device
     }
 
-    @Transactional
+    @Transactional(readOnly = true)
     fun getAllDevices(currentUserId: UUID, currentUserRole: UserRole): List<Device> {
         return when (currentUserRole) {
             UserRole.ADMIN -> deviceRepository.findAll()
@@ -74,7 +74,7 @@ class DeviceService(
         }
     }
 
-    @Transactional
+    @Transactional(readOnly = true)
     fun getOfflineDevices(
         thresholdMillis: Long,
         currentUserId: UUID,
@@ -90,7 +90,7 @@ class DeviceService(
         return deviceRepository.findOfflineDevices(threshold, providerIdFilter)
     }
 
-    @Transactional
+    @Transactional(readOnly = true)
     fun getOnlineDevices(
         thresholdMillis: Long,
         currentUserId: UUID,
@@ -106,7 +106,7 @@ class DeviceService(
         return deviceRepository.findOnlineDevices(threshold, providerIdFilter)
     }
 
-    @Transactional
+    @Transactional(readOnly = true)
     fun getDeviceByStatus(
         status: DeviceStatus,
         currentUserId: UUID,
@@ -121,7 +121,7 @@ class DeviceService(
         return deviceRepository.findByStatusAndProviderId(status, providerIdFilter)
     }
 
-    @Transactional
+    @Transactional(readOnly = true)
     fun getDeviceByShipmentId(
         shipmentId: UUID,
         currentUserId: UUID,
@@ -211,7 +211,7 @@ class DeviceService(
         return DeviceResponse.from(deviceRepository.save(device))
     }
 
-    @Transactional
+    @Transactional(readOnly = true)
     fun filterDevices(
         request: DeviceFilterRequest,
         currentUserId: UUID,

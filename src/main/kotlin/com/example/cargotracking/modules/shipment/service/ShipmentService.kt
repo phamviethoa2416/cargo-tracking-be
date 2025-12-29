@@ -10,10 +10,10 @@ import com.example.cargotracking.modules.shipment.model.types.ShipmentStatus
 import com.example.cargotracking.modules.shipment.repository.ShipmentRepository
 import com.example.cargotracking.modules.user.model.types.UserRole
 import com.example.cargotracking.modules.user.repository.UserRepository
-import jakarta.transaction.Transactional
 import org.springframework.data.domain.PageRequest
 import org.springframework.data.domain.Sort
 import org.springframework.stereotype.Service
+import org.springframework.transaction.annotation.Transactional
 import java.time.Instant
 import java.util.*
 
@@ -63,7 +63,7 @@ class ShipmentService(
         return ShipmentResponse.from(savedShipment)
     }
 
-    @Transactional
+    @Transactional(readOnly = true)
     fun getShipmentById(
         id: UUID,
         currentUserId: UUID,
@@ -76,7 +76,7 @@ class ShipmentService(
         return shipment
     }
 
-    @Transactional
+    @Transactional(readOnly = true)
     fun getAllShipments(
         currentUserId: UUID,
         currentUserRole: UserRole
@@ -270,7 +270,7 @@ class ShipmentService(
         return ShipmentResponse.from(savedShipment)
     }
 
-    @Transactional
+    @Transactional(readOnly = true)
     fun filterShipments(
         request: ShipmentFilterRequest,
         currentUserId: UUID,
@@ -327,7 +327,7 @@ class ShipmentService(
         )
     }
 
-    @Transactional
+    @Transactional(readOnly = true)
     fun getShipmentsByStatus(
         status: ShipmentStatus,
         currentUserId: UUID,

@@ -14,7 +14,7 @@ import com.example.cargotracking.modules.user.model.types.UserRole
 import com.example.cargotracking.modules.user.repository.PasswordResetTokenRepository
 import com.example.cargotracking.modules.user.repository.RefreshTokenRepository
 import com.example.cargotracking.modules.user.repository.UserRepository
-import jakarta.transaction.Transactional
+import org.springframework.transaction.annotation.Transactional
 import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.stereotype.Service
 import java.security.SecureRandom

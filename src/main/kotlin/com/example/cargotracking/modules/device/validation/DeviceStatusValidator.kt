@@ -1,9 +1,7 @@
 package com.example.cargotracking.modules.device.validation
 
 import com.example.cargotracking.modules.device.model.types.DeviceStatus
-import org.springframework.stereotype.Component
 
-@Component
 object DeviceStatusValidator {
     private val validTransitions = mapOf(
         DeviceStatus.AVAILABLE to setOf(

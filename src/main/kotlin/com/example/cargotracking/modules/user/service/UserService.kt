@@ -8,9 +8,9 @@ import com.example.cargotracking.modules.user.model.entity.User
 import com.example.cargotracking.modules.user.model.types.UserRole
 import com.example.cargotracking.modules.user.repository.RefreshTokenRepository
 import com.example.cargotracking.modules.user.repository.UserRepository
-import jakarta.transaction.Transactional
 import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.stereotype.Service
+import org.springframework.transaction.annotation.Transactional
 import java.util.*
 
 @Service
@@ -20,11 +20,14 @@ class UserService(
     private val refreshTokenRepository: RefreshTokenRepository
 ) {
 
+    @Transactional(readOnly = true)
     fun getUserById(id: UUID): User =
         userRepository.findById(id).orElseThrow { NoSuchElementException("User not found with $id") }
 
+    @Transactional(readOnly = true)
     fun getAllUsers(): List<UserResponse> = userRepository.findAll().map { UserResponse.from(it) }
 
+    @Transactional(readOnly = true)
     fun getUsersByRole(role: UserRole): List<UserResponse> {
         return userRepository.findByRole(role)
             .map { UserResponse.from(it) }
