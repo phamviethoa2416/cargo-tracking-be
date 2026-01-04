@@ -1,5 +1,6 @@
 package com.example.cargotracking.modules.shipment.service
 
+import com.example.cargotracking.common.messaging.MessagePublisher
 import com.example.cargotracking.modules.device.model.types.DeviceStatus
 import com.example.cargotracking.modules.device.repository.DeviceRepository
 import com.example.cargotracking.modules.shipment.model.dto.request.*
@@ -21,7 +22,8 @@ import java.util.*
 class ShipmentService(
     private val shipmentRepository: ShipmentRepository,
     private val userRepository: UserRepository,
-    private val deviceRepository: DeviceRepository
+    private val deviceRepository: DeviceRepository,
+    private val messagePublisher: MessagePublisher
 ) {
     @Transactional
     fun createShipment(
@@ -181,6 +183,8 @@ class ShipmentService(
         
         val savedShipment = shipmentRepository.save(shipment)
         deviceRepository.save(device)
+
+        messagePublisher.publishShipmentAssignment(request.deviceId, shipmentId, "assign")
         
         return ShipmentResponse.from(savedShipment)
     }
@@ -224,6 +228,8 @@ class ShipmentService(
                 .orElseThrow { NoSuchElementException("Device not found with id: $deviceId") }
             device.releaseFromShipment()
             deviceRepository.save(device)
+
+            messagePublisher.publishShipmentAssignment(deviceId, shipmentId, "unassign")
         }
 
         val savedShipment = shipmentRepository.save(shipment)
@@ -263,6 +269,8 @@ class ShipmentService(
                 .orElseThrow { NoSuchElementException("Device not found with id: $deviceId") }
             device.releaseFromShipment()
             deviceRepository.save(device)
+
+            messagePublisher.publishShipmentAssignment(deviceId, shipmentId, "unassign")
         }
 
         shipment.cancel()

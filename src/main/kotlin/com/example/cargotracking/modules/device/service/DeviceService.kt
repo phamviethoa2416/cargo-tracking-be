@@ -1,5 +1,6 @@
 package com.example.cargotracking.modules.device.service
 
+import com.example.cargotracking.common.messaging.MessagePublisher
 import com.example.cargotracking.modules.device.model.dto.request.CreateDeviceRequest
 import com.example.cargotracking.modules.device.model.dto.request.DeviceFilterRequest
 import com.example.cargotracking.modules.device.model.dto.request.UpdateDeviceRequest
@@ -22,7 +23,8 @@ import java.util.UUID
 @Service
 class DeviceService(
     private val deviceRepository: DeviceRepository,
-    private val deviceOwnershipValidator: DeviceOwnershipValidator
+    private val deviceOwnershipValidator: DeviceOwnershipValidator,
+    private val messagePublisher: MessagePublisher
 ) {
     @Transactional
     fun createDevice(
@@ -152,7 +154,11 @@ class DeviceService(
         request.batteryLevel?.let(device::updateBatteryLevel)
         request.firmwareVersion?.let(device::updateFirmware)
 
-        return DeviceResponse.from(deviceRepository.save(device))
+        val savedDevice = deviceRepository.save(device)
+
+        messagePublisher.publishDeviceConfigUpdate(savedDevice)
+        
+        return DeviceResponse.from(savedDevice)
     }
 
     @Transactional
@@ -170,7 +176,11 @@ class DeviceService(
 
         device.updateStatus(request.status, request.shipmentId)
 
-        return DeviceResponse.from(deviceRepository.save(device))
+        val savedDevice = deviceRepository.save(device)
+
+        messagePublisher.publishDeviceConfigUpdate(savedDevice)
+        
+        return DeviceResponse.from(savedDevice)
     }
 
     @Transactional
@@ -197,7 +207,11 @@ class DeviceService(
         deviceOwnershipValidator.validateWrite(device, providerId)
 
         device.assignToShipment(shipmentId)
-        return DeviceResponse.from(deviceRepository.save(device))
+        val savedDevice = deviceRepository.save(device)
+
+        messagePublisher.publishShipmentAssignment(deviceId, shipmentId, "assign")
+        
+        return DeviceResponse.from(savedDevice)
     }
 
     @Transactional
@@ -207,8 +221,15 @@ class DeviceService(
 
         deviceOwnershipValidator.validateWrite(device, providerId)
 
+        val shipmentId = device.currentShipmentId
         device.releaseFromShipment()
-        return DeviceResponse.from(deviceRepository.save(device))
+        val savedDevice = deviceRepository.save(device)
+
+        if (shipmentId != null) {
+            messagePublisher.publishShipmentAssignment(deviceId, shipmentId, "unassign")
+        }
+        
+        return DeviceResponse.from(savedDevice)
     }
 
     @Transactional(readOnly = true)

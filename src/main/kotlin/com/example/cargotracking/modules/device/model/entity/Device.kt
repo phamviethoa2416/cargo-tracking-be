@@ -187,6 +187,10 @@ class Device private constructor(
         _model = model
     }
 
+    fun updateLastSeenAt(timestamp: Instant) {
+        _lastSeenAt = timestamp
+    }
+
     fun isOnline(thresholdSeconds: Long = 300): Boolean {
         return _lastSeenAt?.let {
             Instant.now().minusSeconds(thresholdSeconds).isBefore(it)
