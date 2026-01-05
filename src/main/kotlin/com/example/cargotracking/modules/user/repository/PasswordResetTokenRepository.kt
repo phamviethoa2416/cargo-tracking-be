@@ -17,6 +17,6 @@ interface PasswordResetTokenRepository : JpaRepository<PasswordResetToken, UUID>
     fun findAllByUserId(userId: UUID): List<PasswordResetToken>
 
     @Modifying
-    @Query("DELETE FROM PasswordResetToken t WHERE t._expiresAt < :now")
+    @Query("DELETE FROM PasswordResetToken t WHERE t.expiresAt < :now")
     fun deleteExpiredTokens(now: Instant): Int
 }

@@ -20,45 +20,39 @@ class PasswordResetToken private constructor (
     id: UUID,
 
     @Column(name = "user_id", nullable = false)
-    private var _userId: UUID,
+    var userId: UUID,
 
     @Column(name = "token", nullable = false, unique = true, length = 500)
-    private var _token: String,
+    var token: String,
 
     @Column(name = "expires_at", nullable = false)
-    private var _expiresAt: Instant,
+    var expiresAt: Instant,
 
     @Column(name = "used", nullable = false)
-    private var _used: Boolean = false,
+    var used: Boolean = false,
 
     @Column(name = "used_at")
-    private var _usedAt: Instant? = null
+    var usedAt: Instant? = null
 
 ) : BaseEntity(id) {
     protected constructor() : this(
         id = UUID.randomUUID(),
-        _userId = UUID.randomUUID(),
-        _token = "",
-        _expiresAt = Instant.now()
+        userId = UUID.randomUUID(),
+        token = "",
+        expiresAt = Instant.now()
     )
 
-    val userId: UUID get() = _userId
-    val token: String get() = _token
-    val expiresAt: Instant get() = _expiresAt
-    val used: Boolean get() = _used
-    val usedAt: Instant? get() = _usedAt
-
     override fun validateInvariants() {
-        check(_userId != UUID(0, 0)) {
+        check(userId != UUID(0, 0)) {
             "User ID must be valid"
         }
 
-        check(_token.isNotBlank() && _token.length >= 32) {
+        check(token.isNotBlank() && token.length >= 32) {
             "Token must be at least 32 characters"
         }
 
-        if (_used) {
-            check(_usedAt != null) {
+        if (used) {
+            check(usedAt != null) {
                 "Used token must have used timestamp"
             }
         }
@@ -84,11 +78,11 @@ class PasswordResetToken private constructor (
 
             val resetToken = PasswordResetToken(
                 id = UUID.randomUUID(),
-                _userId = userId,
-                _token = token,
-                _expiresAt = expiresAt,
-                _used = false,
-                _usedAt = null
+                userId = userId,
+                token = token,
+                expiresAt = expiresAt,
+                used = false,
+                usedAt = null
             )
 
             resetToken.validateInvariants()
@@ -97,20 +91,20 @@ class PasswordResetToken private constructor (
     }
 
     fun markAsUsed() {
-        require(!_used) {
+        require(!used) {
             "Token has already been used"
         }
         require(!isExpired()) {
             "Cannot use expired token"
         }
 
-        _used = true
-        _usedAt = Instant.now()
+        used = true
+        usedAt = Instant.now()
     }
 
-    fun isExpired(): Boolean = _expiresAt.isBefore(Instant.now())
+    fun isExpired(): Boolean = expiresAt.isBefore(Instant.now())
 
-    fun isActive(): Boolean = !_used && !isExpired()
+    fun isActive(): Boolean = !used && !isExpired()
 
     fun isValid(): Boolean = isActive()
 

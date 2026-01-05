@@ -18,10 +18,10 @@ interface RefreshTokenRepository : JpaRepository<RefreshToken, UUID> {
     fun findByUserIdAndRevoked(userId: UUID, revoked: Boolean): List<RefreshToken>
 
     @Modifying
-    @Query("DELETE FROM RefreshToken t WHERE t._expiresAt < :now")
+    @Query("DELETE FROM RefreshToken t WHERE t.expiresAt < :now")
     fun deleteExpiredTokens(now: Instant): Int
 
     @Modifying
-    @Query("DELETE FROM RefreshToken t WHERE t._userId = :userId")
+    @Query("DELETE FROM RefreshToken t WHERE t.userId = :userId")
     fun deleteByUserId(userId: UUID): Int
 }

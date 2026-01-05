@@ -24,71 +24,60 @@ class Device private constructor(
     id: UUID,
 
     @Column(name = "hardware_uid", nullable = false, unique = true, length = 255)
-    private var _hardwareUID: String,
+    var hardwareUID: String,
 
     @Column(name = "provider_id", nullable = false)
-    private var _providerId: UUID,
+    var providerId: UUID,
 
     @Column(name = "device_name", length = 100)
-    private var _deviceName: String? = null,
+    var deviceName: String? = null,
 
     @Column(name = "model", length = 50)
-    private var _model: String? = null,
+    var model: String? = null,
 
     @Column(name = "current_shipment_id")
-    private var _currentShipmentId: UUID? = null,
+    var currentShipmentId: UUID? = null,
 
     @Column(name = "battery_level")
-    private var _batteryLevel: Int? = null,
+    var batteryLevel: Int? = null,
 
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false)
-    private var _status: DeviceStatus = DeviceStatus.AVAILABLE,
+    var status: DeviceStatus = DeviceStatus.AVAILABLE,
 
     @Column(name = "firmware_version", length = 50)
-    private var _firmwareVersion: String? = null,
+    var firmwareVersion: String? = null,
 
     @Column(name = "total_trips", nullable = false)
-    private var _totalTrips: Int = 0,
+    var totalTrips: Int = 0,
 
     @Column(name = "last_seen_at")
-    private var _lastSeenAt: Instant? = null
+    var lastSeenAt: Instant? = null
 
 ) : BaseEntity(id) {
     protected constructor() : this(
         id = UUID.randomUUID(),
-        _hardwareUID = "",
-        _providerId = UUID.randomUUID()
+        hardwareUID = "",
+        providerId = UUID.randomUUID()
     )
 
-    val hardwareUID: String get() = _hardwareUID
-    val providerId: UUID get() = _providerId
-    val deviceName: String? get() = _deviceName
-    val model: String? get() = _model
-    val currentShipmentId: UUID? get() = _currentShipmentId
-    val batteryLevel: Int? get() = _batteryLevel
-    val status: DeviceStatus get() = _status
-    val firmwareVersion: String? get() = _firmwareVersion
-    val totalTrips: Int get() = _totalTrips
-    val lastSeenAt: Instant? get() = _lastSeenAt
-
     override fun validateInvariants() {
-        check(_hardwareUID.isNotBlank()) {
+        check(hardwareUID.isNotBlank()) {
             "Hardware UID must not be blank"
         }
 
-        check(_totalTrips >= 0) {
-            "Total trips must be non-negative, got: $_totalTrips"
+        check(totalTrips >= 0) {
+            "Total trips must be non-negative, got: $totalTrips"
         }
 
-        _batteryLevel?.let { level ->
+        batteryLevel?.let { level ->
             check(level in 0..100) {
                 "Battery level must be 0-100, got: $level"
             }
         }
 
-        if (_status == DeviceStatus.IN_TRANSIT) {
-            check(_currentShipmentId != null) {
+        if (status == DeviceStatus.IN_TRANSIT) {
+            check(currentShipmentId != null) {
                 "IN_TRANSIT device must have shipment ID"
             }
         }
@@ -108,12 +97,12 @@ class Device private constructor(
 
             val device = Device(
                 id = UUID.randomUUID(),
-                _hardwareUID = hardwareUID,
-                _providerId = providerId,
-                _deviceName = deviceName,
-                _model = model,
-                _status = DeviceStatus.AVAILABLE,
-                _totalTrips = 0
+                hardwareUID = hardwareUID,
+                providerId = providerId,
+                deviceName = deviceName,
+                model = model,
+                status = DeviceStatus.AVAILABLE,
+                totalTrips = 0
             )
 
             device.validateInvariants()
@@ -122,33 +111,33 @@ class Device private constructor(
     }
 
     fun assignToShipment(shipmentId: UUID) {
-        require(_status == DeviceStatus.AVAILABLE) {
-            "Only AVAILABLE device can be assigned to shipment. Current status: $_status"
+        require(status == DeviceStatus.AVAILABLE) {
+            "Only AVAILABLE device can be assigned to shipment. Current status: $status"
         }
         require(shipmentId != UUID(0, 0)) {
             "Shipment ID must be valid"
         }
 
-        _currentShipmentId = shipmentId
-        _status = DeviceStatus.IN_TRANSIT
+        currentShipmentId = shipmentId
+        status = DeviceStatus.IN_TRANSIT
     }
 
     fun releaseFromShipment() {
-        require(_status == DeviceStatus.IN_TRANSIT) {
-            "Only IN_TRANSIT device can be released. Current status: $_status"
+        require(status == DeviceStatus.IN_TRANSIT) {
+            "Only IN_TRANSIT device can be released. Current status: $status"
         }
-        _currentShipmentId = null
-        _status = DeviceStatus.AVAILABLE
-        _totalTrips += 1
+        currentShipmentId = null
+        status = DeviceStatus.AVAILABLE
+        totalTrips += 1
     }
 
     fun retire() {
-        require(_status != DeviceStatus.RETIRED) {
+        require(status != DeviceStatus.RETIRED) {
             "Device is already retired"
         }
 
-        _currentShipmentId = null
-        _status = DeviceStatus.RETIRED
+        currentShipmentId = null
+        status = DeviceStatus.RETIRED
     }
 
     fun updateBatteryLevel(level: Int?) {
@@ -157,7 +146,7 @@ class Device private constructor(
                 "Battery level must be between 0 and 100, got: $it"
             }
         }
-        _batteryLevel = level
+        batteryLevel = level
     }
 
     fun updateFirmware(version: String?) {
@@ -166,7 +155,7 @@ class Device private constructor(
                 "Firmware version must be non-blank and at most 50 characters"
             }
         }
-        _firmwareVersion = version
+        firmwareVersion = version
     }
 
     fun updateDeviceName(name: String?) {
@@ -175,24 +164,24 @@ class Device private constructor(
                 "Device name must be non-blank and at most 100 characters"
             }
         }
-        _deviceName = name
+        deviceName = name
     }
 
-    fun updateModel(model: String?) {
-        model?.let {
+    fun updateModel(newModel: String?) {
+        newModel?.let {
             require(it.isNotBlank() && it.length <= 50) {
                 "Model must be non-blank and at most 50 characters"
             }
         }
-        _model = model
+        model = newModel
     }
 
     fun updateLastSeenAt(timestamp: Instant) {
-        _lastSeenAt = timestamp
+        lastSeenAt = timestamp
     }
 
     fun isOnline(thresholdSeconds: Long = 300): Boolean {
-        return _lastSeenAt?.let {
+        return lastSeenAt?.let {
             Instant.now().minusSeconds(thresholdSeconds).isBefore(it)
         } == true
     }
@@ -206,32 +195,32 @@ class Device private constructor(
                 require(shipmentId != UUID(0, 0)) {
                     "Shipment ID must be valid"
                 }
-                require(_status == DeviceStatus.AVAILABLE) {
-                    "Only AVAILABLE device can be set to IN_TRANSIT. Current status: $_status"
+                require(status == DeviceStatus.AVAILABLE) {
+                    "Only AVAILABLE device can be set to IN_TRANSIT. Current status: $status"
                 }
-                _currentShipmentId = shipmentId
-                _status = newStatus
+                currentShipmentId = shipmentId
+                status = newStatus
             }
             DeviceStatus.AVAILABLE -> {
-                require(_status == DeviceStatus.IN_TRANSIT) {
-                    "Only IN_TRANSIT device can be set to AVAILABLE. Current status: $_status"
+                require(status == DeviceStatus.IN_TRANSIT) {
+                    "Only IN_TRANSIT device can be set to AVAILABLE. Current status: $status"
                 }
-                _currentShipmentId = null
-                _status = newStatus
-                _totalTrips += 1
+                currentShipmentId = null
+                status = newStatus
+                totalTrips += 1
             }
             DeviceStatus.MAINTENANCE -> {
-                require(_status != DeviceStatus.IN_TRANSIT) {
+                require(status != DeviceStatus.IN_TRANSIT) {
                     "Cannot set IN_TRANSIT device to MAINTENANCE. Release from shipment first."
                 }
-                _status = newStatus
+                status = newStatus
             }
             DeviceStatus.RETIRED -> {
-                require(_status != DeviceStatus.IN_TRANSIT) {
+                require(status != DeviceStatus.IN_TRANSIT) {
                     "Cannot set IN_TRANSIT device to RETIRED. Release from shipment first."
                 }
-                _currentShipmentId = null
-                _status = newStatus
+                currentShipmentId = null
+                status = newStatus
             }
         }
     }
@@ -245,6 +234,6 @@ class Device private constructor(
     override fun hashCode(): Int = id.hashCode()
 
     override fun toString(): String {
-        return "Device(id=$id, hardwareUID='$_hardwareUID', status=$_status, provider=$_providerId)"
+        return "Device(id=$id, hardwareUID='$hardwareUID', status=$status, provider=$providerId)"
     }
 }

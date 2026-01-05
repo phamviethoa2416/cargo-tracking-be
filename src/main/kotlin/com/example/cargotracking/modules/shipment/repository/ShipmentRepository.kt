@@ -33,8 +33,8 @@ interface ShipmentRepository : JpaRepository<Shipment, UUID> {
 
     @Query("""
         SELECT s FROM Shipment s 
-        WHERE s._status = :status 
-        AND s._estimatedDeliveryAt < :now
+        WHERE s.status = :status 
+        AND s.estimatedDeliveryAt < :now
     """)
     fun findDelayedShipments(
         @Param("status") status: ShipmentStatus,
@@ -43,20 +43,20 @@ interface ShipmentRepository : JpaRepository<Shipment, UUID> {
 
     @Query("""
         SELECT s FROM Shipment s WHERE 
-        (:status IS NULL OR s._status = :status) AND 
-        (:customerId IS NULL OR s._customerId = :customerId) AND 
-        (:providerId IS NULL OR s._providerId = :providerId) AND 
-        (:shipperId IS NULL OR s._shipperId = :shipperId) AND 
-        (:deviceId IS NULL OR s._deviceId = :deviceId) AND 
+        (:status IS NULL OR s.status = :status) AND 
+        (:customerId IS NULL OR s.customerId = :customerId) AND 
+        (:providerId IS NULL OR s.providerId = :providerId) AND 
+        (:shipperId IS NULL OR s.shipperId = :shipperId) AND 
+        (:deviceId IS NULL OR s.deviceId = :deviceId) AND 
         (:createdAfter IS NULL OR (s.createdAt IS NOT NULL AND s.createdAt >= :createdAfter)) AND 
         (:createdBefore IS NULL OR (s.createdAt IS NOT NULL AND s.createdAt <= :createdBefore)) AND 
-        (:deliveryAfter IS NULL OR (s._estimatedDeliveryAt IS NOT NULL AND s._estimatedDeliveryAt >= :deliveryAfter)) AND 
-        (:deliveryBefore IS NULL OR (s._estimatedDeliveryAt IS NOT NULL AND s._estimatedDeliveryAt <= :deliveryBefore)) AND 
+        (:deliveryAfter IS NULL OR (s.estimatedDeliveryAt IS NOT NULL AND s.estimatedDeliveryAt >= :deliveryAfter)) AND 
+        (:deliveryBefore IS NULL OR (s.estimatedDeliveryAt IS NOT NULL AND s.estimatedDeliveryAt <= :deliveryBefore)) AND 
         (
             :search IS NULL OR 
-            LOWER(s._goodsDescription) LIKE LOWER(CONCAT('%', :search, '%')) OR 
-            LOWER(s._pickupAddress) LIKE LOWER(CONCAT('%', :search, '%')) OR 
-            LOWER(s._deliveryAddress) LIKE LOWER(CONCAT('%', :search, '%'))
+            LOWER(s.goodsDescription) LIKE LOWER(CONCAT('%', :search, '%')) OR 
+            LOWER(s.pickupAddress) LIKE LOWER(CONCAT('%', :search, '%')) OR 
+            LOWER(s.deliveryAddress) LIKE LOWER(CONCAT('%', :search, '%'))
         )
     """)
     fun findWithFilters(

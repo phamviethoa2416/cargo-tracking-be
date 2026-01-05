@@ -24,67 +24,58 @@ class User private constructor (
     id: UUID,
 
     @Column(name = "username", unique = true, nullable = false, length = 100)
-    private var _username: String,
+    var username: String,
 
     @Column(name = "email", unique = true, nullable = false, length = 255)
-    private var _email: String,
+    var email: String,
 
     @Column(name = "password_hash", nullable = false)
-    private var _passwordHash: String,
+    var passwordHash: String,
 
     @Column(name = "full_name", nullable = false, length = 255)
-    private var _fullName: String,
+    var fullName: String,
 
     @Column(name = "phone_number", length = 20)
-    private var _phoneNumber: String? = null,
+    var phoneNumber: String? = null,
 
     @Enumerated(EnumType.STRING)
     @Column(name = "role", nullable = false)
-    private var _role: UserRole,
+    var role: UserRole,
 
     @Column(name = "address", length = 500)
-    private var _address: String? = null,
+    var address: String? = null,
 
     @Column(name = "is_active", nullable = false)
-    private var _isActive: Boolean = true
+    var isActive: Boolean = true
 
 ) : BaseEntity(id) {
     protected constructor() : this(
         id = UUID.randomUUID(),
-        _username = "",
-        _email = "",
-        _passwordHash = "",
-        _fullName = "",
-        _role = UserRole.CUSTOMER
+        username = "",
+        email = "",
+        passwordHash = "",
+        fullName = "",
+        role = UserRole.CUSTOMER
     )
 
-    val username: String get() = _username
-    val email: String get() = _email
-    val passwordHash: String get() = _passwordHash
-    val fullName: String get() = _fullName
-    val phoneNumber: String? get() = _phoneNumber
-    val role: UserRole get() = _role
-    val address: String? get() = _address
-    val isActive: Boolean get() = _isActive
-
     override fun validateInvariants() {
-        check(_username.isNotBlank() && _username.length in 3..100) {
-            "Username must be 3-100 characters, got: '${_username}'"
+        check(username.isNotBlank() && username.length in 3..100) {
+            "Username must be 3-100 characters, got: '$username'"
         }
 
-        check(_email.isNotBlank() && EMAIL_REGEX.matches(_email)) {
-            "Invalid email format: '${_email}'"
+        check(email.isNotBlank() && EMAIL_REGEX.matches(email)) {
+            "Invalid email format: '$email'"
         }
 
-        check(_passwordHash.isNotBlank()) {
+        check(passwordHash.isNotBlank()) {
             "Password hash must not be blank"
         }
 
-        check(_fullName.isNotBlank() && _fullName.length in 2..255) {
-            "Full name must be 2-255 characters, got: '${_fullName}'"
+        check(fullName.isNotBlank() && fullName.length in 2..255) {
+            "Full name must be 2-255 characters, got: '$fullName'"
         }
 
-        _phoneNumber?.let { phone ->
+        phoneNumber?.let { phone ->
             check(PHONE_REGEX.matches(phone)) {
                 "Invalid phone number format: '$phone'"
             }
@@ -119,14 +110,14 @@ class User private constructor (
 
             val user = User(
                 id = UUID.randomUUID(),
-                _username = username.trim(),
-                _email = email.trim().lowercase(),
-                _passwordHash = passwordHash,
-                _fullName = fullName.trim(),
-                _phoneNumber = phoneNumber?.trim(),
-                _role = role,
-                _address = address?.trim(),
-                _isActive = true
+                username = username.trim(),
+                email = email.trim().lowercase(),
+                passwordHash = passwordHash,
+                fullName = fullName.trim(),
+                phoneNumber = phoneNumber?.trim(),
+                role = role,
+                address = address?.trim(),
+                isActive = true
             )
 
             user.validateInvariants()
@@ -142,7 +133,7 @@ class User private constructor (
             "Invalid email format: '$newEmail'"
         }
 
-        _email = newEmail.trim().lowercase()
+        email = newEmail.trim().lowercase()
     }
 
     fun updatePassword(newPasswordHash: String) {
@@ -150,7 +141,7 @@ class User private constructor (
             "Password hash must not be blank"
         }
 
-        _passwordHash = newPasswordHash
+        passwordHash = newPasswordHash
     }
 
     fun updateFullName(newFullName: String) {
@@ -158,7 +149,7 @@ class User private constructor (
             "Full name must be 2-255 characters long"
         }
 
-        _fullName = newFullName.trim()
+        fullName = newFullName.trim()
     }
 
     fun updatePhoneNumber(newPhoneNumber: String?) {
@@ -171,17 +162,17 @@ class User private constructor (
             }
         }
 
-        _phoneNumber = newPhoneNumber?.trim()
+        phoneNumber = newPhoneNumber?.trim()
     }
 
     fun updateAddress(newAddress: String?) {
-        newAddress?.let { address ->
-            require(address.isNotBlank() && address.length <= 500) {
+        newAddress?.let { addr ->
+            require(addr.isNotBlank() && addr.length <= 500) {
                 "Address must not be blank and at most 500 characters"
             }
         }
 
-        _address = newAddress?.trim()
+        address = newAddress?.trim()
     }
 
     fun updateProfile(
@@ -195,19 +186,19 @@ class User private constructor (
     }
 
     fun deactivate() {
-        require(_isActive) {
+        require(isActive) {
             "User is already deactivated"
         }
 
-        _isActive = false
+        isActive = false
     }
 
     fun activate() {
-        require(!_isActive) {
+        require(!isActive) {
             "User is already active"
         }
 
-        _isActive = true
+        isActive = true
     }
 
     override fun equals(other: Any?): Boolean {
@@ -219,6 +210,6 @@ class User private constructor (
     override fun hashCode(): Int = id.hashCode()
 
     override fun toString(): String {
-        return "User(id=$id, username='$_username', email='$_email', role=$_role, active=$_isActive)"
+        return "User(id=$id, username='$username', email='$email', role=$role, active=$isActive)"
     }
 }

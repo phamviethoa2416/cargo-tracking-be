@@ -17,49 +17,42 @@ import java.util.UUID
     ]
 )
 class RefreshToken private constructor(
-
     id: UUID,
 
     @Column(name = "user_id", nullable = false)
-    private var _userId: UUID,
+    var userId: UUID,
 
-    @Column(name = "token", nullable = false, unique = true, length = 500)
-    private var _token: String,
+    @Column(name = "token", nullable = false, unique = true, length = 1000)
+    var token: String,
 
     @Column(name = "expires_at", nullable = false)
-    private var _expiresAt: Instant,
+    var expiresAt: Instant,
 
     @Column(name = "revoked", nullable = false)
-    private var _revoked: Boolean = false,
+    var revoked: Boolean = false,
 
     @Column(name = "revoked_at")
-    private var _revokedAt: Instant? = null
+    var revokedAt: Instant? = null
 
 ) : BaseEntity(id) {
     protected constructor() : this(
         id = UUID.randomUUID(),
-        _userId = UUID.randomUUID(),
-        _token = "",
-        _expiresAt = Instant.now()
+        userId = UUID.randomUUID(),
+        token = "",
+        expiresAt = Instant.now()
     )
 
-    val userId: UUID get() = _userId
-    val token: String get() = _token
-    val expiresAt: Instant get() = _expiresAt
-    val revoked: Boolean get() = _revoked
-    val revokedAt: Instant? get() = _revokedAt
-
     override fun validateInvariants() {
-        check(_userId != UUID(0, 0)) {
+        check(userId != UUID(0, 0)) {
             "User ID must be valid"
         }
 
-        check(_token.isNotBlank() && _token.length >= 32) {
+        check(token.isNotBlank() && token.length >= 32) {
             "Token must be at least 32 characters"
         }
 
-        if (_revoked) {
-            check(_revokedAt != null) {
+        if (revoked) {
+            check(revokedAt != null) {
                 "Revoked token must have revoked timestamp"
             }
         }
@@ -85,11 +78,11 @@ class RefreshToken private constructor(
 
             val refreshToken = RefreshToken(
                 id = UUID.randomUUID(),
-                _userId = userId,
-                _token = token,
-                _expiresAt = expiresAt,
-                _revoked = false,
-                _revokedAt = null
+                userId = userId,
+                token = token,
+                expiresAt = expiresAt,
+                revoked = false,
+                revokedAt = null
             )
 
             refreshToken.validateInvariants()
@@ -98,17 +91,17 @@ class RefreshToken private constructor(
     }
 
     fun revoke() {
-        require(!_revoked) {
+        require(!revoked) {
             "Token is already revoked"
         }
 
-        _revoked = true
-        _revokedAt = Instant.now()
+        revoked = true
+        revokedAt = Instant.now()
     }
 
-    fun isExpired(): Boolean = _expiresAt.isBefore(Instant.now())
+    fun isExpired(): Boolean = expiresAt.isBefore(Instant.now())
 
-    fun isActive(): Boolean = !_revoked && !isExpired()
+    fun isActive(): Boolean = !revoked && !isExpired()
 
     fun isValid(): Boolean = isActive()
 

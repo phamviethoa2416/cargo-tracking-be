@@ -19,25 +19,25 @@ interface DeviceRepository : JpaRepository<Device, UUID> {
 
     fun findByProviderId(providerId: UUID): List<Device>
 
-    @Query("SELECT d FROM Device d WHERE d._currentShipmentId = :shipmentId AND (:providerId IS NULL OR d._providerId = :providerId)")
+    @Query("SELECT d FROM Device d WHERE d.currentShipmentId = :shipmentId AND (:providerId IS NULL OR d.providerId = :providerId)")
     fun findByCurrentShipmentId(
         @Param("shipmentId") shipmentId: UUID,
         @Param("providerId") providerId: UUID?
     ): List<Device>
 
-    @Query("SELECT d FROM Device d WHERE (d._lastSeenAt IS NULL OR d._lastSeenAt < :threshold) AND (:providerId IS NULL OR d._providerId = :providerId)")
+    @Query("SELECT d FROM Device d WHERE (d.lastSeenAt IS NULL OR d.lastSeenAt < :threshold) AND (:providerId IS NULL OR d.providerId = :providerId)")
     fun findOfflineDevices(
         @Param("threshold") threshold: Instant,
         @Param("providerId") providerId: UUID?
     ): List<Device>
     
-    @Query("SELECT d FROM Device d WHERE d._lastSeenAt IS NOT NULL AND d._lastSeenAt >= :threshold AND (:providerId IS NULL OR d._providerId = :providerId)")
+    @Query("SELECT d FROM Device d WHERE d.lastSeenAt IS NOT NULL AND d.lastSeenAt >= :threshold AND (:providerId IS NULL OR d.providerId = :providerId)")
     fun findOnlineDevices(
         @Param("threshold") threshold: Instant,
         @Param("providerId") providerId: UUID?
     ): List<Device>
     
-    @Query("SELECT d FROM Device d WHERE d._status = :status AND (:providerId IS NULL OR d._providerId = :providerId)")
+    @Query("SELECT d FROM Device d WHERE d.status = :status AND (:providerId IS NULL OR d.providerId = :providerId)")
     fun findByStatusAndProviderId(
         @Param("status") status: DeviceStatus,
         @Param("providerId") providerId: UUID?
@@ -45,14 +45,14 @@ interface DeviceRepository : JpaRepository<Device, UUID> {
 
     @Query("""
         SELECT d FROM Device d WHERE 
-        (:status IS NULL OR d._status = :status) AND 
-        (:providerId IS NULL OR d._providerId = :providerId) AND 
-        (:minBattery IS NULL OR d._batteryLevel IS NULL OR d._batteryLevel >= :minBattery) AND 
-        (:maxBattery IS NULL OR d._batteryLevel IS NULL OR d._batteryLevel <= :maxBattery) AND 
+        (:status IS NULL OR d.status = :status) AND 
+        (:providerId IS NULL OR d.providerId = :providerId) AND 
+        (:minBattery IS NULL OR d.batteryLevel IS NULL OR d.batteryLevel >= :minBattery) AND 
+        (:maxBattery IS NULL OR d.batteryLevel IS NULL OR d.batteryLevel <= :maxBattery) AND 
         (
             :search IS NULL OR 
-            LOWER(d._deviceName) LIKE LOWER(CONCAT('%', :search, '%')) OR 
-            LOWER(d._hardwareUID) LIKE LOWER(CONCAT('%', :search, '%'))
+            LOWER(d.deviceName) LIKE LOWER(CONCAT('%', :search, '%')) OR 
+            LOWER(d.hardwareUID) LIKE LOWER(CONCAT('%', :search, '%'))
         )
     """)
     fun findWithFilters(
