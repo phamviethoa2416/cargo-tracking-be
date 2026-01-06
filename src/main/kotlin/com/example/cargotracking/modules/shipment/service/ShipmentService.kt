@@ -84,10 +84,10 @@ class ShipmentService(
         currentUserRole: UserRole
     ): List<Shipment> {
         return when (currentUserRole) {
-            UserRole.ADMIN -> shipmentRepository.findAll()
             UserRole.CUSTOMER -> shipmentRepository.findByCustomerId(currentUserId)
             UserRole.PROVIDER -> shipmentRepository.findByProviderId(currentUserId)
             UserRole.SHIPPER -> shipmentRepository.findByShipperId(currentUserId)
+            UserRole.ADMIN -> emptyList()
         }
     }
 
@@ -257,10 +257,9 @@ class ShipmentService(
                     throw IllegalStateException("Shipment does not belong to this provider")
                 }
             }
-            UserRole.ADMIN -> {
-                // Admin can cancel any shipment
+            UserRole.ADMIN, UserRole.SHIPPER -> {
+                throw IllegalStateException("Only CUSTOMER or PROVIDER can cancel shipments")
             }
-            else -> throw IllegalStateException("Only CUSTOMER, PROVIDER, or ADMIN can cancel shipments")
         }
 
         // Release device if assigned
@@ -285,19 +284,16 @@ class ShipmentService(
         currentUserRole: UserRole
     ): ShipmentListResponse {
         val customerIdFilter = when (currentUserRole) {
-            UserRole.ADMIN -> request.customerId
             UserRole.CUSTOMER -> currentUserId
             else -> null
         }
 
         val providerIdFilter = when (currentUserRole) {
-            UserRole.ADMIN -> request.providerId
             UserRole.PROVIDER -> currentUserId
             else -> null
         }
 
         val shipperIdFilter = when (currentUserRole) {
-            UserRole.ADMIN -> request.shipperId
             UserRole.SHIPPER -> currentUserId
             else -> null
         }
@@ -344,16 +340,15 @@ class ShipmentService(
         val allByStatus = shipmentRepository.findByStatus(status)
 
         return when (currentUserRole) {
-            UserRole.ADMIN -> allByStatus
             UserRole.CUSTOMER -> allByStatus.filter { it.customerId == currentUserId }
             UserRole.PROVIDER -> allByStatus.filter { it.providerId == currentUserId }
             UserRole.SHIPPER -> allByStatus.filter { it.shipperId == currentUserId }
+            UserRole.ADMIN -> emptyList() // Admins don't see shipments
         }
     }
 
     private fun validateReadAccess(shipment: Shipment, currentUserId: UUID, currentUserRole: UserRole) {
         when (currentUserRole) {
-            UserRole.ADMIN -> return
             UserRole.CUSTOMER -> {
                 if (shipment.customerId != currentUserId) {
                     throw IllegalStateException("Shipment does not belong to this customer")
@@ -369,12 +364,14 @@ class ShipmentService(
                     throw IllegalStateException("Shipment does not belong to this shipper")
                 }
             }
+            UserRole.ADMIN -> {
+                throw IllegalStateException("Admins cannot access shipments directly")
+            }
         }
     }
 
     private fun validateWriteAccess(shipment: Shipment, currentUserId: UUID, currentUserRole: UserRole) {
         when (currentUserRole) {
-            UserRole.ADMIN -> return
             UserRole.CUSTOMER -> {
                 if (shipment.customerId != currentUserId) {
                     throw IllegalStateException("Shipment does not belong to this customer")
@@ -385,7 +382,9 @@ class ShipmentService(
                     throw IllegalStateException("Shipment does not belong to this provider")
                 }
             }
-            else -> throw IllegalStateException("Only CUSTOMER, PROVIDER, or ADMIN can modify shipments")
+            UserRole.ADMIN, UserRole.SHIPPER -> {
+                throw IllegalStateException("Only CUSTOMER or PROVIDER can modify shipments")
+            }
         }
     }
 }
