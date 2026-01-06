@@ -29,7 +29,7 @@ interface OrderRepository : JpaRepository<Order, UUID> {
         (:createdBefore IS NULL OR (o.createdAt IS NOT NULL AND o.createdAt <= :createdBefore)) AND 
         (
             :search IS NULL OR 
-            (o.goodsDescription IS NOT NULL AND LOWER(o.goodsDescription) LIKE LOWER(CONCAT('%', :search, '%'))) OR 
+            LOWER(o.goodsDescription) LIKE LOWER(CONCAT('%', :search, '%')) OR 
             LOWER(o.pickupAddress) LIKE LOWER(CONCAT('%', :search, '%')) OR 
             LOWER(o.deliveryAddress) LIKE LOWER(CONCAT('%', :search, '%'))
         )

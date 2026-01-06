@@ -12,8 +12,9 @@ data class CreateOrderRequest(
     @field:NotNull(message = "Provider ID is required")
     val providerId: UUID,
 
-    @field:Size(max = 1000, message = "Goods description must be at most 1000 characters")
-    val goodsDescription: String? = null,
+    @field:NotBlank(message = "Goods description is required")
+    @field:Size(min = 1, max = 1000, message = "Goods description must be 1-1000 characters")
+    val goodsDescription: String,
 
     @field:NotBlank(message = "Pickup address is required")
     @field:Size(min = 10, max = 500, message = "Pickup address must be 10-500 characters")

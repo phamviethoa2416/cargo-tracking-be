@@ -142,7 +142,7 @@ class OrderService(
         val shipment = Shipment.create(
             customerId = order.customerId,
             providerId = order.providerId,
-            goodsDescription = order.goodsDescription ?: "No description provided",
+            goodsDescription = order.goodsDescription,
             pickupAddress = order.pickupAddress,
             deliveryAddress = order.deliveryAddress,
             estimatedDeliveryAt = order.estimatedDeliveryAt
