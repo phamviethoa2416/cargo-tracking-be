@@ -10,7 +10,7 @@ data class OrderResponse(
     val customerId: UUID,
     val providerId: UUID,
     val status: OrderStatus,
-    val goodsDescription: String?,
+    val goodsDescription: String,
     val pickupAddress: String,
     val deliveryAddress: String,
     val estimatedDeliveryAt: Instant?,

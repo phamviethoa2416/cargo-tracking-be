@@ -34,8 +34,8 @@ class Order private constructor(
     @Column(name = "status", nullable = false)
     var status: OrderStatus = OrderStatus.PENDING,
 
-    @Column(name = "goods_description", length = 1000)
-    var goodsDescription: String? = null,
+    @Column(name = "goods_description", nullable = false, length = 1000)
+    var goodsDescription: String,
 
     @Column(name = "pickup_address", nullable = false, length = 500)
     var pickupAddress: String,
@@ -86,7 +86,7 @@ class Order private constructor(
         id = UUID.randomUUID(),
         customerId = UUID.randomUUID(),
         providerId = UUID.randomUUID(),
-        goodsDescription = null,
+        goodsDescription = "",
         pickupAddress = "",
         deliveryAddress = ""
     )
@@ -108,10 +108,8 @@ class Order private constructor(
             "Delivery address must be 1-500 characters"
         }
 
-        goodsDescription?.let {
-            check(it.length <= 1000) {
-                "Goods description must be at most 1000 characters"
-            }
+        check(goodsDescription.isNotBlank() && goodsDescription.length <= 1000) {
+            "Goods description must be 1-1000 characters"
         }
 
         if (requireTemperatureTracking) {
@@ -169,7 +167,7 @@ class Order private constructor(
         fun create(
             customerId: UUID,
             providerId: UUID,
-            goodsDescription: String? = null,
+            goodsDescription: String,
             pickupAddress: String,
             deliveryAddress: String,
             estimatedDeliveryAt: Instant? = null,
@@ -184,6 +182,8 @@ class Order private constructor(
         ): Order {
             require(customerId != UUID(0, 0)) { "Customer ID must be valid" }
             require(providerId != UUID(0, 0)) { "Provider ID must be valid" }
+            require(goodsDescription.isNotBlank()) { "Goods description is required" }
+            require(goodsDescription.length <= 1000) { "Goods description must be at most 1000 characters" }
             require(pickupAddress.isNotBlank()) { "Pickup address is required" }
             require(deliveryAddress.isNotBlank()) { "Delivery address is required" }
 
@@ -191,7 +191,7 @@ class Order private constructor(
                 id = UUID.randomUUID(),
                 customerId = customerId,
                 providerId = providerId,
-                goodsDescription = goodsDescription?.trim()?.takeIf { it.isNotBlank() },
+                goodsDescription = goodsDescription.trim(),
                 pickupAddress = pickupAddress.trim(),
                 deliveryAddress = deliveryAddress.trim(),
                 estimatedDeliveryAt = estimatedDeliveryAt,
