@@ -192,13 +192,24 @@ class ShipmentService(
     @Transactional
     fun startTransit(
         shipmentId: UUID,
-        providerId: UUID
+        shipperId: UUID
     ): ShipmentResponse {
         val shipment = shipmentRepository.findById(shipmentId)
             .orElseThrow { NoSuchElementException("Shipment not found with id: $shipmentId") }
 
-        if (shipment.providerId != providerId) {
-            throw IllegalStateException("Shipment does not belong to this provider")
+        if (shipment.shipperId != shipperId) {
+            throw IllegalStateException("Shipment does not belong to this shipper")
+        }
+
+        val shipper = userRepository.findById(shipperId)
+            .orElseThrow { NoSuchElementException("Shipper not found with id: $shipperId") }
+
+        if (shipper.role != UserRole.SHIPPER) {
+            throw IllegalStateException("Only SHIPPER can start transit")
+        }
+
+        if (!shipper.isActive) {
+            throw IllegalStateException("Shipper account is not active")
         }
 
         shipment.startTransit()
