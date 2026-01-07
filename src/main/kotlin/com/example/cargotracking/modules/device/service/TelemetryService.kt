@@ -3,6 +3,7 @@ package com.example.cargotracking.modules.device.service
 import com.example.cargotracking.common.client.IngestionClient
 import com.example.cargotracking.modules.device.model.dto.response.*
 import com.example.cargotracking.modules.device.repository.DeviceRepository
+import com.example.cargotracking.modules.shipment.repository.ShipmentRepository
 import com.example.cargotracking.modules.user.model.types.UserRole
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
@@ -12,7 +13,8 @@ import java.util.UUID
 @Service
 class TelemetryService(
     private val ingestionClient: IngestionClient,
-    private val deviceRepository: DeviceRepository
+    private val deviceRepository: DeviceRepository,
+    private val shipmentRepository: ShipmentRepository
 ) {
     private val logger = LoggerFactory.getLogger(TelemetryService::class.java)
 
@@ -118,7 +120,33 @@ class TelemetryService(
             val device = deviceRepository.findById(deviceId).orElse(null)
             if (device?.providerId == userId) device else null
         }
-        UserRole.SHIPPER -> deviceRepository.findById(deviceId).orElse(null)
-        UserRole.CUSTOMER -> null
+        UserRole.SHIPPER -> {
+            // Shipper can only access devices assigned to their shipments
+            val device = deviceRepository.findById(deviceId).orElse(null)
+            if (device != null) {
+                val shipments = shipmentRepository.findByDeviceId(deviceId)
+                if (shipments.any { it.shipperId == userId }) {
+                    device
+                } else {
+                    null
+                }
+            } else {
+                null
+            }
+        }
+        UserRole.CUSTOMER -> {
+            // Customer can only access devices assigned to their shipments
+            val device = deviceRepository.findById(deviceId).orElse(null)
+            if (device != null) {
+                val shipments = shipmentRepository.findByDeviceId(deviceId)
+                if (shipments.any { it.customerId == userId }) {
+                    device
+                } else {
+                    null
+                }
+            } else {
+                null
+            }
+        }
     }
 }
