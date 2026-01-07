@@ -89,12 +89,17 @@ class Shipment private constructor(
         }
 
         when (status) {
-            ShipmentStatus.ASSIGNED, ShipmentStatus.IN_TRANSIT -> {
+            ShipmentStatus.ASSIGNED -> {
                 check(shipperId != null) {
-                    "ASSIGNED/IN_TRANSIT shipment must have shipper"
+                    "ASSIGNED shipment must have shipper"
+                }
+            }
+            ShipmentStatus.IN_TRANSIT -> {
+                check(shipperId != null) {
+                    "IN_TRANSIT shipment must have shipper"
                 }
                 check(deviceId != null) {
-                    "ASSIGNED/IN_TRANSIT shipment must have device"
+                    "IN_TRANSIT shipment must have device"
                 }
             }
             ShipmentStatus.COMPLETED -> {
