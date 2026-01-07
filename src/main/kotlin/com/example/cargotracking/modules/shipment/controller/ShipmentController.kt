@@ -140,7 +140,7 @@ class ShipmentController(
 
         val shipment = shipmentService.startTransit(
             shipmentId = id,
-            providerId = principal.userId
+            shipperId = principal.userId
         )
 
         return ResponseEntity.ok(shipment)
