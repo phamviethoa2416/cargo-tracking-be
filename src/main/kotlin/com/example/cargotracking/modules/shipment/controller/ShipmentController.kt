@@ -157,7 +157,7 @@ class ShipmentController(
         val shipment = shipmentService.completeShipment(
             shipmentId = id,
             request = request,
-            shipperId = principal.userId
+            customerId = principal.userId
         )
 
         return ResponseEntity.ok(shipment)

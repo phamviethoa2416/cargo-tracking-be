@@ -222,13 +222,24 @@ class ShipmentService(
     fun completeShipment(
         shipmentId: UUID,
         request: CompleteShipmentRequest,
-        shipperId: UUID
+        customerId: UUID
     ): ShipmentResponse {
         val shipment = shipmentRepository.findById(shipmentId)
             .orElseThrow { NoSuchElementException("Shipment not found with id: $shipmentId") }
 
-        if (shipment.shipperId != shipperId) {
-            throw IllegalStateException("Shipment does not belong to this shipper")
+        if (shipment.customerId != customerId) {
+            throw IllegalStateException("Shipment does not belong to this customer")
+        }
+
+        val customer = userRepository.findById(customerId)
+            .orElseThrow { NoSuchElementException("Customer not found with id: $customerId") }
+
+        if (customer.role != UserRole.CUSTOMER) {
+            throw IllegalStateException("Only CUSTOMER can complete shipments")
+        }
+
+        if (!customer.isActive) {
+            throw IllegalStateException("Customer account is not active")
         }
 
         val deliveredAt = request.deliveredAt ?: Instant.now()
