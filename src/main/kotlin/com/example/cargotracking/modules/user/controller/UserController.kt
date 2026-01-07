@@ -61,9 +61,9 @@ class UserController(
     ): ResponseEntity<UserResponse> {
         val principal = authentication.principal as UserPrincipal
 
-        if (principal.userId != id && principal.role != UserRole.ADMIN) {
-            return ResponseEntity.status(HttpStatus.FORBIDDEN).build()
-        }
+//        if (principal.userId != id && principal.role != UserRole.ADMIN) {
+//            return ResponseEntity.status(HttpStatus.FORBIDDEN).build()
+//        }
         
         val user = userService.getUserById(id)
         return ResponseEntity.ok(UserResponse.from(user))
@@ -77,10 +77,24 @@ class UserController(
     }
 
     @GetMapping("/role/{role}")
-    @PreAuthorize("hasRole('ADMIN')")
-    fun getUsersByRole(@PathVariable role: UserRole): ResponseEntity<List<UserResponse>> {
-        val users = userService.getUsersByRole(role)
-        return ResponseEntity.ok(users)
+    @PreAuthorize("hasAnyRole('ADMIN', 'PROVIDER')")
+    fun getUsersByRole(
+        authentication: Authentication,
+        @PathVariable role: UserRole
+    ): ResponseEntity<List<UserResponse>> {
+        val principal = authentication.principal as UserPrincipal
+
+        if (principal.role == UserRole.ADMIN) {
+            val users = userService.getUsersByRole(role)
+            return ResponseEntity.ok(users)
+        }
+
+        if (principal.role == UserRole.PROVIDER && role == UserRole.SHIPPER) {
+            val users = userService.getUsersByRole(UserRole.SHIPPER)
+            return ResponseEntity.ok(users)
+        }
+
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).build()
     }
 
     @PostMapping("/{id}/deactivate")
