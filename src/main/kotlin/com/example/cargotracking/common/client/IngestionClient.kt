@@ -1,5 +1,6 @@
 package com.example.cargotracking.common.client
 
+import com.example.cargotracking.common.client.dto.IngestionTelemetryResponse
 import com.example.cargotracking.modules.device.model.dto.response.*
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Value
@@ -107,24 +108,33 @@ class IngestionClient(
         return try {
             logger.debug("Fetching latest telemetry for device: {}", deviceId)
             
-            // Note: Ingestion service may not have a dedicated telemetry endpoint
-            // We fetch the latest location which includes telemetry data
-            val location = getLatestLocation(deviceId, authToken)
+            val ingestionResponse = restClient.get()
+                .uri("/api/v1/devices/{id}/telemetry/latest", deviceId)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer $authToken")
+                .retrieve()
+                .body(IngestionTelemetryResponse::class.java)
             
-            // For now, return a basic telemetry response
-            // In production, you might have a dedicated telemetry endpoint
-            location?.let {
+            ingestionResponse?.let {
                 TelemetryResponse(
                     deviceId = it.deviceId,
                     time = it.time,
-                    temperature = null,
-                    humidity = null,
-                    pressure = null,
-                    batteryLevel = null,
-                    signalStrength = null,
-                    isMoving = it.speed?.let { speed -> speed > 0.5 }
+                    temperature = it.temperature,
+                    humidity = it.humidity,
+                    co2 = it.co2,
+                    light = it.light,
+                    latitude = it.latitude,
+                    longitude = it.longitude,
+                    speed = it.speed,
+                    accuracy = it.accuracy,
+                    lean = it.lean,
+                    batteryLevel = it.batteryLevel,
+                    signalStrength = it.signalStrength,
+                    isMoving = it.isMoving
                 )
             }
+        } catch (e: RestClientException) {
+            logger.error("Failed to fetch telemetry for device {}: {}", deviceId, e.message)
+            null
         } catch (e: Exception) {
             logger.error("Failed to fetch telemetry for device {}: {}", deviceId, e.message)
             null
