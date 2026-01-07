@@ -64,35 +64,65 @@ class TelemetryService(
         userRole: UserRole,
         authToken: String
     ): TelemetryResponse? {
+        logger.info("[TELEMETRY_SERVICE] getLatestTelemetry called - deviceId: {}, userId: {}, role: {}", 
+            deviceId, userId, userRole)
+        
         val device = findDeviceWithAccess(deviceId, userId, userRole)
             ?: throw IllegalArgumentException("Device not found or access denied")
 
-        logger.debug("Fetching telemetry for device {} by user {}", deviceId, userId)
+        logger.info("[TELEMETRY_SERVICE] Device found - id: {}, batteryLevel from DB: {}", 
+            device.id, device.batteryLevel)
         
         // Get telemetry from ingestion, supplemented with device data from DB
         val telemetry = ingestionClient.getLatestTelemetry(deviceId, authToken)
         
-        // Enrich with data from backend's device record
-        return telemetry?.copy(
-            batteryLevel = telemetry.batteryLevel ?: device.batteryLevel
-        ) ?: device.let {
-            TelemetryResponse(
-                deviceId = device.id,
-                time = device.lastSeenAt ?: Instant.now(),
-                temperature = null,
-                humidity = null,
-                co2 = null,
-                light = null,
-                latitude = null,
-                longitude = null,
-                speed = null,
-                accuracy = null,
-                lean = null,
-                batteryLevel = device.batteryLevel,
-                signalStrength = null,
-                isMoving = null
-            )
+        if (telemetry == null) {
+            logger.warn("[TELEMETRY_SERVICE] Ingestion client returned null, creating fallback response")
+            return device.let {
+                TelemetryResponse(
+                    deviceId = device.id,
+                    time = device.lastSeenAt ?: Instant.now(),
+                    temperature = null,
+                    humidity = null,
+                    co2 = null,
+                    light = null,
+                    latitude = null,
+                    longitude = null,
+                    speed = null,
+                    accuracy = null,
+                    lean = null,
+                    batteryLevel = device.batteryLevel,
+                    signalStrength = null,
+                    isMoving = null
+                )
+            }
         }
+        
+        logger.info("[TELEMETRY_SERVICE] Received telemetry from ingestion client:")
+        logger.info("  - temperature: {} (null={})", telemetry.temperature, telemetry.temperature == null)
+        logger.info("  - humidity: {} (null={})", telemetry.humidity, telemetry.humidity == null)
+        logger.info("  - co2: {} (null={})", telemetry.co2, telemetry.co2 == null)
+        logger.info("  - light: {} (null={})", telemetry.light, telemetry.light == null)
+        logger.info("  - batteryLevel: {} (null={})", telemetry.batteryLevel, telemetry.batteryLevel == null)
+        logger.info("  - signalStrength: {} (null={})", telemetry.signalStrength, telemetry.signalStrength == null)
+        
+        // Enrich with data from backend's device record
+        val enriched = telemetry.copy(
+            batteryLevel = telemetry.batteryLevel ?: device.batteryLevel
+        )
+        
+        if (telemetry.batteryLevel == null && device.batteryLevel != null) {
+            logger.info("[TELEMETRY_SERVICE] Enriched batteryLevel from device DB: {}", device.batteryLevel)
+        }
+        
+        logger.info("[TELEMETRY_SERVICE] Returning enriched telemetry:")
+        logger.info("  - temperature: {} (null={})", enriched.temperature, enriched.temperature == null)
+        logger.info("  - humidity: {} (null={})", enriched.humidity, enriched.humidity == null)
+        logger.info("  - co2: {} (null={})", enriched.co2, enriched.co2 == null)
+        logger.info("  - light: {} (null={})", enriched.light, enriched.light == null)
+        logger.info("  - batteryLevel: {} (null={})", enriched.batteryLevel, enriched.batteryLevel == null)
+        
+        return enriched
     }
 
     /**

@@ -106,7 +106,8 @@ class IngestionClient(
 
     fun getLatestTelemetry(deviceId: UUID, authToken: String): TelemetryResponse? {
         return try {
-            logger.debug("Fetching latest telemetry for device: {}", deviceId)
+            logger.info("[INGESTION_CLIENT] Fetching latest telemetry for device: {}", deviceId)
+            logger.info("[INGESTION_CLIENT] Calling endpoint: /api/v1/devices/{}/telemetry/latest", deviceId)
             
             val ingestionResponse = restClient.get()
                 .uri("/api/v1/devices/{id}/telemetry/latest", deviceId)
@@ -114,29 +115,59 @@ class IngestionClient(
                 .retrieve()
                 .body(IngestionTelemetryResponse::class.java)
             
-            ingestionResponse?.let {
-                TelemetryResponse(
-                    deviceId = it.deviceId,
-                    time = it.time,
-                    temperature = it.temperature,
-                    humidity = it.humidity,
-                    co2 = it.co2,
-                    light = it.light,
-                    latitude = it.latitude,
-                    longitude = it.longitude,
-                    speed = it.speed,
-                    accuracy = it.accuracy,
-                    lean = it.lean,
-                    batteryLevel = it.batteryLevel,
-                    signalStrength = it.signalStrength,
-                    isMoving = it.isMoving
-                )
+            if (ingestionResponse == null) {
+                logger.warn("[INGESTION_CLIENT] Response body is null for device: {}", deviceId)
+                return null
             }
+            
+            logger.info("[INGESTION_CLIENT] Received IngestionTelemetryResponse for device {}:", deviceId)
+            logger.info("  - deviceId: {}", ingestionResponse.deviceId)
+            logger.info("  - time: {}", ingestionResponse.time)
+            logger.info("  - temperature: {} (null={})", ingestionResponse.temperature, ingestionResponse.temperature == null)
+            logger.info("  - humidity: {} (null={})", ingestionResponse.humidity, ingestionResponse.humidity == null)
+            logger.info("  - co2: {} (null={})", ingestionResponse.co2, ingestionResponse.co2 == null)
+            logger.info("  - light: {} (null={})", ingestionResponse.light, ingestionResponse.light == null)
+            logger.info("  - latitude: {} (null={})", ingestionResponse.latitude, ingestionResponse.latitude == null)
+            logger.info("  - longitude: {} (null={})", ingestionResponse.longitude, ingestionResponse.longitude == null)
+            logger.info("  - speed: {} (null={})", ingestionResponse.speed, ingestionResponse.speed == null)
+            logger.info("  - accuracy: {} (null={})", ingestionResponse.accuracy, ingestionResponse.accuracy == null)
+            logger.info("  - lean: {} (null={})", ingestionResponse.lean, ingestionResponse.lean == null)
+            logger.info("  - batteryLevel: {} (null={})", ingestionResponse.batteryLevel, ingestionResponse.batteryLevel == null)
+            logger.info("  - signalStrength: {} (null={})", ingestionResponse.signalStrength, ingestionResponse.signalStrength == null)
+            logger.info("  - isMoving: {} (null={})", ingestionResponse.isMoving, ingestionResponse.isMoving == null)
+            
+            val response = TelemetryResponse(
+                deviceId = ingestionResponse.deviceId,
+                time = ingestionResponse.time,
+                temperature = ingestionResponse.temperature,
+                humidity = ingestionResponse.humidity,
+                co2 = ingestionResponse.co2,
+                light = ingestionResponse.light,
+                latitude = ingestionResponse.latitude,
+                longitude = ingestionResponse.longitude,
+                speed = ingestionResponse.speed,
+                accuracy = ingestionResponse.accuracy,
+                lean = ingestionResponse.lean,
+                batteryLevel = ingestionResponse.batteryLevel,
+                signalStrength = ingestionResponse.signalStrength,
+                isMoving = ingestionResponse.isMoving
+            )
+            
+            logger.info("[INGESTION_CLIENT] Mapped to TelemetryResponse for device {}:", deviceId)
+            logger.info("  - temperature: {} (null={})", response.temperature, response.temperature == null)
+            logger.info("  - humidity: {} (null={})", response.humidity, response.humidity == null)
+            logger.info("  - co2: {} (null={})", response.co2, response.co2 == null)
+            logger.info("  - light: {} (null={})", response.light, response.light == null)
+            logger.info("  - batteryLevel: {} (null={})", response.batteryLevel, response.batteryLevel == null)
+            logger.info("  - signalStrength: {} (null={})", response.signalStrength, response.signalStrength == null)
+            
+            response
         } catch (e: RestClientException) {
-            logger.error("Failed to fetch telemetry for device {}: {}", deviceId, e.message)
+            logger.error("[INGESTION_CLIENT] RestClientException for device {} - Response: {}",
+                deviceId, e.message, e)
             null
         } catch (e: Exception) {
-            logger.error("Failed to fetch telemetry for device {}: {}", deviceId, e.message)
+            logger.error("[INGESTION_CLIENT] Exception for device {}: {}", deviceId, e.message, e)
             null
         }
     }
