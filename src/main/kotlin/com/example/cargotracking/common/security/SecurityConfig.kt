@@ -47,13 +47,12 @@ class SecurityConfig(
             .authorizeHttpRequests {
                 it.requestMatchers(
                     "/api/auth/**",
-                    "/api/devices/**",
                     "/actuator/**",
                     "/swagger-ui/**",
                     "/swagger-ui.html",
                     "/v3/api-docs/**",
                     "/v3/api-docs.yaml",
-                    "/webjars/**",
+                    "/webjars/**"
                 ).permitAll()
                 it.anyRequest().authenticated()
             }
@@ -63,14 +62,14 @@ class SecurityConfig(
     @Bean
     fun corsConfigurationSource(): CorsConfigurationSource {
         val configuration = CorsConfiguration().apply {
-            allowedOrigins = this@SecurityConfig.allowedOrigins.split(",").map { it.trim() }
-            allowedMethods = this@SecurityConfig.allowedMethods.split(",").map { it.trim() }
+            allowedOrigins = this@SecurityConfig.allowedOrigins.split(",").map(String::trim)
+            allowedMethods = this@SecurityConfig.allowedMethods.split(",").map(String::trim)
             allowedHeaders = if (this@SecurityConfig.allowedHeaders == "*") {
-                listOf("*")
+                listOf("Authorization", "Content-Type")
             } else {
-                this@SecurityConfig.allowedHeaders.split(",").map { it.trim() }
+                this@SecurityConfig.allowedHeaders.split(",").map(String::trim)
             }
-            exposedHeaders = this@SecurityConfig.exposedHeaders.split(",").map { it.trim() }
+            exposedHeaders = this@SecurityConfig.exposedHeaders.split(",").map(String::trim)
             allowCredentials = this@SecurityConfig.allowCredentials
             maxAge = this@SecurityConfig.maxAge
         }

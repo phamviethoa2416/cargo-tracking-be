@@ -1,9 +1,9 @@
 package com.example.cargotracking.common.security
 
-import jakarta.annotation.PostConstruct
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.core.io.Resource
 import org.springframework.stereotype.Component
+import java.security.Key
 import java.security.KeyFactory
 import java.security.interfaces.RSAPrivateKey
 import java.security.interfaces.RSAPublicKey
@@ -25,42 +25,33 @@ class RSAKeyProperties(
     @Value($$"${jwt.refresh-token-expiration:86400000}")
     val refreshTokenExpiration: Long
 ) {
-    //TODO: enable issuer & audience when scaling
+    val publicKey: RSAPublicKey = loadPublicKey(publicKeyResource)
+    val privateKey: RSAPrivateKey = loadPrivateKey(privateKeyResource)
 
-    lateinit var publicKey: RSAPublicKey
-    lateinit var privateKey: RSAPrivateKey
-
-    @PostConstruct
-    fun initKeys() {
-        try {
-            this.publicKey = loadPublicKey()
-            this.privateKey = loadPrivateKey()
-        } catch (e: Exception) {
-            throw IllegalStateException("Cannot initialize RSA keys. Check file PEM in folder keys/", e)
+    private fun loadPublicKey(resource: Resource): RSAPublicKey =
+        loadKey(resource, "PUBLIC") {
+            KeyFactory.getInstance("RSA")
+                .generatePublic(X509EncodedKeySpec(it)) as RSAPublicKey
         }
-    }
 
-    private fun loadPublicKey(): RSAPublicKey {
-        val content = publicKeyResource.inputStream.bufferedReader().use { it.readText() }
-        val cleanKey = content
-            .replace("-----BEGIN PUBLIC KEY-----", "")
-            .replace("-----END PUBLIC KEY-----", "")
+    private fun loadPrivateKey(resource: Resource): RSAPrivateKey =
+        loadKey(resource, "PRIVATE") {
+            KeyFactory.getInstance("RSA")
+                .generatePrivate(PKCS8EncodedKeySpec(it)) as RSAPrivateKey
+        }
+
+
+    private fun <T : Key> loadKey(
+        resource: Resource,
+        type: String,
+        keyProvider: (ByteArray) -> T
+    ): T {
+        val content = resource.inputStream.bufferedReader().use { it.readText() }
+            .replace("-----BEGIN $type KEY-----", "")
+            .replace("-----END $type KEY-----", "")
             .replace("\\s".toRegex(), "")
 
-        val decoded = Base64.getDecoder().decode(cleanKey)
-        val spec = X509EncodedKeySpec(decoded)
-        return KeyFactory.getInstance("RSA").generatePublic(spec) as RSAPublicKey
-    }
-
-    private fun loadPrivateKey(): RSAPrivateKey {
-        val content = privateKeyResource.inputStream.bufferedReader().use { it.readText() }
-        val cleanKey = content
-            .replace("-----BEGIN PRIVATE KEY-----", "")
-            .replace("-----END PRIVATE KEY-----", "")
-            .replace("\\s".toRegex(), "")
-
-        val decoded = Base64.getDecoder().decode(cleanKey)
-        val spec = PKCS8EncodedKeySpec(decoded)
-        return KeyFactory.getInstance("RSA").generatePrivate(spec) as RSAPrivateKey
+        val decoded = Base64.getDecoder().decode(content)
+        return keyProvider(decoded)
     }
 }
