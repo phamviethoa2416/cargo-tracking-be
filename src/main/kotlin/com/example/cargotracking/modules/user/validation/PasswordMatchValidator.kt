@@ -1,42 +1,35 @@
 package com.example.cargotracking.modules.user.validation
 
+import com.example.cargotracking.common.utils.getPropValue
 import jakarta.validation.ConstraintValidator
 import jakarta.validation.ConstraintValidatorContext
-import kotlin.reflect.full.memberProperties
 
 class PasswordMatchValidator : ConstraintValidator<PasswordMatch, Any> {
-    private lateinit var passwordFieldName: String
-    private lateinit var confirmPasswordFieldName: String
-    private lateinit var message: String
+    private lateinit var config: PasswordMatch
 
-    override fun initialize(constraintAnnotation: PasswordMatch) {
-        passwordFieldName = constraintAnnotation.passwordField
-        confirmPasswordFieldName = constraintAnnotation.confirmPasswordField
-        message = constraintAnnotation.message
+    override fun initialize(annotation: PasswordMatch) {
+        this.config = annotation
     }
 
-    override fun isValid(value: Any?, context: ConstraintValidatorContext?): Boolean {
+    override fun isValid(value: Any?, context: ConstraintValidatorContext): Boolean {
         if (value == null) return true
 
-        val password = getFieldValue(value, passwordFieldName) as? String
-        val confirmPassword = getFieldValue(value, confirmPasswordFieldName) as? String
+        val password = (value.getPropValue(config.passwordField) as? String)?.trim()
+        val confirm = (value.getPropValue(config.confirmPasswordField) as? String)?.trim()
 
-        val isValid = password != null && confirmPassword != null && password == confirmPassword
+        if (password.isNullOrBlank() || confirm.isNullOrBlank()) return true
 
-        if (!isValid) {
-            context?.disableDefaultConstraintViolation()
-            context?.buildConstraintViolationWithTemplate(message)
-                ?.addPropertyNode(confirmPasswordFieldName)
-                ?.addConstraintViolation()
+        val isValid = password == confirm
+
+        return isValid.also { valid ->
+            if (!valid) {
+                context.apply {
+                    disableDefaultConstraintViolation()
+                    buildConstraintViolationWithTemplate(config.message)
+                        .addPropertyNode(config.confirmPasswordField)
+                        .addConstraintViolation()
+                }
+            }
         }
-
-        return isValid
-    }
-
-    private fun getFieldValue(obj: Any, fieldName: String): Any? {
-        return obj::class.memberProperties
-            .find { it.name == fieldName }
-            ?.call(obj)
     }
 }
-
