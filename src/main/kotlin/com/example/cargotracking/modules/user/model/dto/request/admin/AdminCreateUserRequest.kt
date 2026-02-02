@@ -1,4 +1,4 @@
-package com.example.cargotracking.modules.user.model.dto.request
+package com.example.cargotracking.modules.user.model.dto.request.admin
 
 import com.example.cargotracking.modules.user.model.types.UserRole
 import jakarta.validation.constraints.Email
