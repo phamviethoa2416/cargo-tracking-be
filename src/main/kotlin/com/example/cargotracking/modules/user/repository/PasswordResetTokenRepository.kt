@@ -12,10 +12,7 @@ import java.util.UUID
 @Repository
 interface PasswordResetTokenRepository : JpaRepository<PasswordResetToken, UUID> {
     fun findByTokenAndUsedFalseAndExpiresAtAfter(token: String, now: Instant): Optional<PasswordResetToken>
-
     fun findByToken(token: String): Optional<PasswordResetToken>
-    fun findAllByUserId(userId: UUID): List<PasswordResetToken>
-
     @Modifying
     @Query("DELETE FROM PasswordResetToken t WHERE t.expiresAt < :now")
     fun deleteExpiredTokens(now: Instant): Int

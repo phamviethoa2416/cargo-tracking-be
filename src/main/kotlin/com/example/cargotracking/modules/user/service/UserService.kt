@@ -1,8 +1,8 @@
 package com.example.cargotracking.modules.user.service
 
-import com.example.cargotracking.modules.user.model.dto.request.ChangePasswordRequest
-import com.example.cargotracking.modules.user.model.dto.request.UpdateProfileRequest
-import com.example.cargotracking.modules.user.model.dto.response.SuccessResponse
+import com.example.cargotracking.modules.user.exception.UserException
+import com.example.cargotracking.modules.user.model.dto.request.user.*
+import com.example.cargotracking.common.response.SuccessResponse
 import com.example.cargotracking.modules.user.model.dto.response.UserResponse
 import com.example.cargotracking.modules.user.model.entity.User
 import com.example.cargotracking.modules.user.model.types.UserRole
@@ -22,7 +22,7 @@ class UserService(
 
     @Transactional(readOnly = true)
     fun getUserById(id: UUID): User =
-        userRepository.findById(id).orElseThrow { NoSuchElementException("User not found with $id") }
+        userRepository.findById(id).orElseThrow { UserException.UserNotFoundException("User not found with $id") }
 
     @Transactional(readOnly = true)
     fun getAllUsers(): List<UserResponse> = userRepository.findAll().map { UserResponse.from(it) }
@@ -53,7 +53,7 @@ class UserService(
         val user = getUserById(userId)
 
         if (!passwordEncoder.matches(request.currentPassword, user.passwordHash)) {
-            throw IllegalArgumentException("Old password is incorrect")
+            throw UserException.InvalidCredentialsException("Current password is incorrect")
         }
 
         val encodedPassword = passwordEncoder.encode(request.newPassword)

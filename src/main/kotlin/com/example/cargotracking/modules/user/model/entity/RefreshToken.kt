@@ -36,8 +36,8 @@ class RefreshToken private constructor(
 
 ) : BaseEntity(id) {
     protected constructor() : this(
-        id = UUID.randomUUID(),
-        userId = UUID.randomUUID(),
+        id = UUID(0, 0),
+        userId = UUID(0, 0),
         token = "",
         expiresAt = Instant.now()
     )
@@ -84,8 +84,6 @@ class RefreshToken private constructor(
                 revoked = false,
                 revokedAt = null
             )
-
-            refreshToken.validateInvariants()
             return refreshToken
         }
     }
@@ -103,8 +101,6 @@ class RefreshToken private constructor(
 
     fun isActive(): Boolean = !revoked && !isExpired()
 
-    fun isValid(): Boolean = isActive()
-
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
         if (other !is RefreshToken) return false
@@ -113,7 +109,6 @@ class RefreshToken private constructor(
 
     override fun hashCode(): Int = id.hashCode()
 
-    override fun toString(): String {
-        return "RefreshToken(id=$id, userId=$userId, expiresAt=$expiresAt, revoked=$revoked)"
-    }
+    override fun toString(): String =
+        "RefreshToken(id=$id, userId=$userId, expiresAt=$expiresAt, revoked=$revoked)"
 }

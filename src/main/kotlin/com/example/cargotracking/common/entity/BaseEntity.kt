@@ -17,16 +17,16 @@ import java.util.UUID
 abstract class BaseEntity(
     @Id
     @Column(updatable = false, nullable = false)
-    val id: UUID = UUID.randomUUID(),
+    val id: UUID,
 ) {
     @CreatedDate
     @Column(name = "created_at", updatable = false, nullable = false)
-    var createdAt: Instant? = null
+    lateinit var createdAt: Instant
         protected set
 
     @LastModifiedDate
     @Column(name = "updated_at", nullable = false)
-    var updatedAt: Instant? = null
+    lateinit var updatedAt: Instant
         protected set
 
     protected abstract fun validateInvariants()

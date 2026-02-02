@@ -1,9 +1,12 @@
 package com.example.cargotracking.modules.user.repository
 
 import com.example.cargotracking.modules.user.model.entity.RefreshToken
+import jakarta.persistence.LockModeType
 import org.springframework.data.jpa.repository.JpaRepository
+import org.springframework.data.jpa.repository.Lock
 import org.springframework.data.jpa.repository.Modifying
 import org.springframework.data.jpa.repository.Query
+import org.springframework.data.repository.query.Param
 import org.springframework.stereotype.Repository
 import java.time.Instant
 import java.util.Optional
@@ -13,8 +16,9 @@ import java.util.UUID
 interface RefreshTokenRepository : JpaRepository<RefreshToken, UUID> {
     fun findByToken(token: String): Optional<RefreshToken>
 
-    fun findAllByUserId(userId: UUID): List<RefreshToken>
-
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT t FROM RefreshToken t WHERE t.token = :token")
+    fun findByTokenWithLock(@Param("token") token: String): Optional<RefreshToken>
     fun findByUserIdAndRevoked(userId: UUID, revoked: Boolean): List<RefreshToken>
 
     @Modifying

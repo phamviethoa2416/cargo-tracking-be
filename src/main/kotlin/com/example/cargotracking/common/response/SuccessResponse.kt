@@ -1,4 +1,4 @@
-package com.example.cargotracking.modules.user.model.dto.response
+package com.example.cargotracking.common.response
 
 data class SuccessResponse(
     val message: String,

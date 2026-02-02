@@ -50,7 +50,7 @@ class User private constructor (
 
 ) : BaseEntity(id) {
     protected constructor() : this(
-        id = UUID.randomUUID(),
+        id = UUID(0, 0),
         username = "",
         email = "",
         passwordHash = "",
@@ -119,8 +119,6 @@ class User private constructor (
                 address = address?.trim(),
                 isActive = true
             )
-
-            user.validateInvariants()
             return user
         }
     }
@@ -209,7 +207,6 @@ class User private constructor (
 
     override fun hashCode(): Int = id.hashCode()
 
-    override fun toString(): String {
-        return "User(id=$id, username='$username', email='$email', role=$role, active=$isActive)"
-    }
+    override fun toString(): String =
+        "User(id=$id, username='$username', email='$email', role=$role, active=$isActive)"
 }

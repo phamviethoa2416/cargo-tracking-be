@@ -36,8 +36,8 @@ class PasswordResetToken private constructor (
 
 ) : BaseEntity(id) {
     protected constructor() : this(
-        id = UUID.randomUUID(),
-        userId = UUID.randomUUID(),
+        id = UUID(0, 0),
+        userId = UUID(0, 0),
         token = "",
         expiresAt = Instant.now()
     )
@@ -84,8 +84,6 @@ class PasswordResetToken private constructor (
                 used = false,
                 usedAt = null
             )
-
-            resetToken.validateInvariants()
             return resetToken
         }
     }
@@ -106,8 +104,6 @@ class PasswordResetToken private constructor (
 
     fun isActive(): Boolean = !used && !isExpired()
 
-    fun isValid(): Boolean = isActive()
-
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
         if (other !is PasswordResetToken) return false
@@ -116,7 +112,6 @@ class PasswordResetToken private constructor (
 
     override fun hashCode(): Int = id.hashCode()
 
-    override fun toString(): String {
-        return "PasswordResetToken(id=$id, userId=$userId, expiresAt=$expiresAt, used=$used)"
-    }
+    override fun toString(): String =
+        "PasswordResetToken(id=$id, userId=$userId, expiresAt=$expiresAt, used=$used)"
 }

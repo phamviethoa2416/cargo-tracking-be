@@ -1,5 +1,6 @@
 package com.example.cargotracking.common.exception
 
+import com.example.cargotracking.modules.user.exception.UserException
 import org.slf4j.LoggerFactory
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
@@ -18,135 +19,103 @@ class GlobalExceptionHandler {
     private val logger = LoggerFactory.getLogger(GlobalExceptionHandler::class.java)
 
     @ExceptionHandler(MethodArgumentNotValidException::class)
-    fun handleValidationException(ex: MethodArgumentNotValidException): ResponseEntity<ErrorResponse> {
-        val errors = ex.bindingResult.allErrors.associate { error ->
-            val fieldName = (error as? FieldError)?.field ?: error.objectName
-            val message = error.defaultMessage ?: "Invalid value"
-            fieldName to message
+    fun handleValidationException(ex: MethodArgumentNotValidException) =
+        ex.bindingResult.allErrors
+            .groupBy(
+                { (it as? FieldError)?.field ?: it.objectName },
+                { it.defaultMessage ?: "Invalid value" }
+            ).let { errors ->
+                logger.warn("Validation failed: {}", errors)
+                buildResponse(HttpStatus.BAD_REQUEST, "VALIDATION_FAILED", "One or more fields have invalid values", errors)
+            }
+
+    @ExceptionHandler(IllegalArgumentException::class, MethodArgumentTypeMismatchException::class)
+    fun handleBadRequest(ex: Exception) =
+        ex.message.let { msg ->
+            logger.warn("Bad request: $msg")
+            val message = if (ex is MethodArgumentTypeMismatchException)
+                "Invalid value '${ex.value}' for parameter '${ex.name}'. Expected: ${ex.requiredType?.simpleName}"
+            else msg ?: "Invalid request"
+            buildResponse(HttpStatus.BAD_REQUEST, "BAD_REQUEST", message)
         }
 
-        val errorResponse = ErrorResponse(
-            status = HttpStatus.BAD_REQUEST.value(),
-            error = "Validation Failed",
-            message = "One or more fields have invalid values",
-            details = errors,
-            timestamp = Instant.now()
-        )
-
-        logger.warn("Validation error: {}", errors)
-        return ResponseEntity.badRequest().body(errorResponse)
-    }
-
-    @ExceptionHandler(IllegalArgumentException::class)
-    fun handleIllegalArgumentException(ex: IllegalArgumentException): ResponseEntity<ErrorResponse> {
-        val errorResponse = ErrorResponse(
-            status = HttpStatus.BAD_REQUEST.value(),
-            error = "Bad Request",
-            message = ex.message ?: "Invalid request",
-            timestamp = Instant.now()
-        )
-
-        logger.warn("Bad request: {}", ex.message)
-        return ResponseEntity.badRequest().body(errorResponse)
-    }
+    @ExceptionHandler(NoSuchElementException::class)
+    fun handleNotFound(ex: NoSuchElementException) =
+        buildResponse(HttpStatus.NOT_FOUND, "NOT_FOUND", ex.message ?: "Resource not found")
+            .also { logger.warn("Resource not found: ${ex.message}") }
 
     @ExceptionHandler(IllegalStateException::class)
-    fun handleIllegalStateException(ex: IllegalStateException): ResponseEntity<ErrorResponse> {
-        val errorResponse = ErrorResponse(
-            status = HttpStatus.CONFLICT.value(),
-            error = "Conflict",
-            message = ex.message ?: "Operation not allowed in current state",
-            timestamp = Instant.now()
-        )
-
-        logger.warn("State conflict: {}", ex.message)
-        return ResponseEntity.status(HttpStatus.CONFLICT).body(errorResponse)
-    }
-
-    @ExceptionHandler(NoSuchElementException::class)
-    fun handleNoSuchElementException(ex: NoSuchElementException): ResponseEntity<ErrorResponse> {
-        val errorResponse = ErrorResponse(
-            status = HttpStatus.NOT_FOUND.value(),
-            error = "Not Found",
-            message = ex.message ?: "Resource not found",
-            timestamp = Instant.now()
-        )
-
-        logger.warn("Resource not found: {}", ex.message)
-        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(errorResponse)
-    }
-
-    @ExceptionHandler(AccessDeniedException::class)
-    fun handleAccessDeniedException(ex: AccessDeniedException): ResponseEntity<ErrorResponse> {
-        val errorResponse = ErrorResponse(
-            status = HttpStatus.FORBIDDEN.value(),
-            error = "Forbidden",
-            message = "You don't have permission to access this resource",
-            timestamp = Instant.now()
-        )
-
-        logger.warn("Access denied: {}", ex.message)
-        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(errorResponse)
-    }
+    fun handleConflict(ex: IllegalStateException) =
+        buildResponse(HttpStatus.CONFLICT, "CONFLICT", ex.message ?: "Operation not allowed")
+            .also { logger.warn("State conflict: ${ex.message}") }
 
     @ExceptionHandler(AuthenticationException::class)
-    fun handleAuthenticationException(ex: AuthenticationException): ResponseEntity<ErrorResponse> {
-        val errorResponse = ErrorResponse(
-            status = HttpStatus.UNAUTHORIZED.value(),
-            error = "Unauthorized",
-            message = ex.message ?: "Authentication required",
-            timestamp = Instant.now()
-        )
+    fun handleUnauthorized(ex: AuthenticationException) =
+        buildResponse(HttpStatus.UNAUTHORIZED, "UNAUTHORIZED", ex.message ?: "Authentication required")
+            .also { logger.warn("Authentication failed: ${ex.message}") }
 
-        logger.warn("Authentication failed: {}", ex.message)
-        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(errorResponse)
-    }
+    @ExceptionHandler(AccessDeniedException::class)
+    fun handleForbidden(ex: AccessDeniedException) =
+        buildResponse(HttpStatus.FORBIDDEN, "FORBIDDEN", "You do not have permission")
 
-    @ExceptionHandler(MethodArgumentTypeMismatchException::class)
-    fun handleTypeMismatchException(ex: MethodArgumentTypeMismatchException): ResponseEntity<ErrorResponse> {
-        val errorResponse = ErrorResponse(
-            status = HttpStatus.BAD_REQUEST.value(),
-            error = "Bad Request",
-            message = "Invalid value '${ex.value}' for parameter '${ex.name}'. Expected type: ${ex.requiredType?.simpleName}",
-            timestamp = Instant.now()
-        )
-
-        logger.warn("Type mismatch: {}", ex.message)
-        return ResponseEntity.badRequest().body(errorResponse)
-    }
-
-    @ExceptionHandler(RuntimeException::class)
-    fun handleRuntimeException(ex: RuntimeException): ResponseEntity<ErrorResponse> {
-        val errorResponse = ErrorResponse(
-            status = HttpStatus.BAD_REQUEST.value(),
-            error = "Bad Request",
-            message = ex.message ?: "An error occurred",
-            timestamp = Instant.now()
-        )
-
-        logger.error("Runtime error: {}", ex.message, ex)
-        return ResponseEntity.badRequest().body(errorResponse)
+    // User module custom exceptions - sealed class handler
+    @ExceptionHandler(UserException::class)
+    fun handleUserException(ex: UserException) = when (ex) {
+        is UserException.UserNotFoundException ->
+            buildResponse(HttpStatus.NOT_FOUND, "USER_NOT_FOUND", ex.message ?: "User not found")
+                .also { logger.warn("User not found: ${ex.message}") }
+        
+        is UserException.InvalidCredentialsException ->
+            buildResponse(HttpStatus.UNAUTHORIZED, "INVALID_CREDENTIALS", ex.message ?: "Invalid credentials")
+                .also { logger.warn("Invalid credentials: ${ex.message}") }
+        
+        is UserException.UserAlreadyExistsException ->
+            buildResponse(HttpStatus.CONFLICT, "USER_ALREADY_EXISTS", ex.message ?: "User already exists")
+                .also { logger.warn("User already exists: ${ex.message}") }
+        
+        is UserException.UserAccountDisabledException ->
+            buildResponse(HttpStatus.FORBIDDEN, "ACCOUNT_DISABLED", ex.message ?: "User account is disabled")
+                .also { logger.warn("Account disabled: ${ex.message}") }
+        
+        is UserException.InvalidTokenException ->
+            buildResponse(HttpStatus.UNAUTHORIZED, "INVALID_TOKEN", ex.message ?: "Invalid token")
+                .also { logger.warn("Invalid token: ${ex.message}") }
+        
+        is UserException.TokenExpiredException ->
+            buildResponse(HttpStatus.UNAUTHORIZED, "TOKEN_EXPIRED", ex.message ?: "Token is expired")
+                .also { logger.warn("Token expired: ${ex.message}") }
+        
+        is UserException.TokenRevokedException ->
+            buildResponse(HttpStatus.UNAUTHORIZED, "TOKEN_REVOKED", ex.message ?: "Token has been revoked")
+                .also { logger.warn("Token revoked: ${ex.message}") }
     }
 
     @ExceptionHandler(Exception::class)
-    fun handleGenericException(ex: Exception): ResponseEntity<ErrorResponse> {
-        val errorResponse = ErrorResponse(
-            status = HttpStatus.INTERNAL_SERVER_ERROR.value(),
-            error = "Internal Server Error",
-            message = "An unexpected error occurred. Please try again later.",
-            timestamp = Instant.now()
-        )
+    fun handleInternalError(ex: Exception) =
+        buildResponse(HttpStatus.INTERNAL_SERVER_ERROR, "INTERNAL_ERROR", "An unexpected error occurred")
+            .also { logger.error("Unhandled exception", ex) }
 
-        logger.error("Unexpected error: {}", ex.message, ex)
-        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse)
-    }
+    private fun buildResponse(
+        status: HttpStatus,
+        error: String,
+        message: String,
+        details: Map<String, List<String>>? = null
+    ): ResponseEntity<ErrorResponse> =
+        ResponseEntity.status(status).body(
+            ErrorResponse(
+                status = status.value(),
+                error = error,
+                message = message,
+                details = details,
+                timestamp = Instant.now()
+            )
+        )
 }
 
 data class ErrorResponse(
     val status: Int,
     val error: String,
     val message: String,
-    val details: Map<String, String>? = null,
+    val details: Map<String, List<String>>? = null,
     val timestamp: Instant
 )
-

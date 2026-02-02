@@ -1,15 +1,13 @@
 package com.example.cargotracking.modules.user.controller
 
-import com.example.cargotracking.modules.user.model.dto.request.*
+import com.example.cargotracking.modules.user.model.dto.request.auth.*
 import com.example.cargotracking.modules.user.model.dto.response.AuthResponse
-import com.example.cargotracking.modules.user.model.dto.response.SuccessResponse
+import com.example.cargotracking.common.response.SuccessResponse
 import com.example.cargotracking.modules.user.model.dto.response.TokenResponse
-import com.example.cargotracking.modules.user.model.dto.response.UserResponse
 import com.example.cargotracking.modules.user.service.AuthService
 import jakarta.validation.Valid
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
-import org.springframework.security.access.prepost.PreAuthorize
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
@@ -22,19 +20,10 @@ class AuthController(
 ) {
 
     @PostMapping("/register")
-    fun registerCustomer(
+    fun register(
         @Valid @RequestBody request: CustomerRegisterRequest
     ): ResponseEntity<AuthResponse> {
         val response = authService.registerCustomer(request)
-        return ResponseEntity.status(HttpStatus.CREATED).body(response)
-    }
-
-    @PostMapping("/admin/users")
-    @PreAuthorize("hasRole('ADMIN')")
-    fun createUserByAdmin(
-        @Valid @RequestBody request: AdminCreateUserRequest
-    ): ResponseEntity<UserResponse> {
-        val response = authService.createUserByAdmin(request)
         return ResponseEntity.status(HttpStatus.CREATED).body(response)
     }
 
@@ -54,7 +43,7 @@ class AuthController(
         return ResponseEntity.ok(response)
     }
 
-    @PostMapping("/forgotPassword")
+    @PostMapping("/forgot-password")
     fun forgotPassword(@Valid @RequestBody request: ForgotPasswordRequest): ResponseEntity<SuccessResponse> {
         authService.forgotPassword(request)
         return ResponseEntity.ok(

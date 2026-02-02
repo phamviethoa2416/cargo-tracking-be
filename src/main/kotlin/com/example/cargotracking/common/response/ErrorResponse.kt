@@ -1,4 +1,4 @@
-package com.example.cargotracking.modules.user.model.dto.response
+package com.example.cargotracking.common.response
 
 import java.time.Instant
 
