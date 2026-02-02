@@ -1,9 +1,0 @@
-package com.example.cargotracking.modules.user.model.dto.request
-
-import jakarta.validation.constraints.NotBlank
-
-data class RefreshTokenRequest(
-    @field:NotBlank(message = "Refresh token is required")
-    val refreshToken: String
-)
-
