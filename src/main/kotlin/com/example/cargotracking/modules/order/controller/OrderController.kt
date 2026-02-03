@@ -1,9 +1,7 @@
 package com.example.cargotracking.modules.order.controller
 
-import com.example.cargotracking.modules.order.model.dto.request.AcceptOrderRequest
-import com.example.cargotracking.modules.order.model.dto.request.CreateOrderRequest
-import com.example.cargotracking.modules.order.model.dto.request.OrderFilterRequest
-import com.example.cargotracking.modules.order.model.dto.request.RejectOrderRequest
+import com.example.cargotracking.modules.order.model.dto.request.order.*
+import com.example.cargotracking.modules.order.model.dto.request.provider.*
 import com.example.cargotracking.modules.order.model.dto.response.OrderListResponse
 import com.example.cargotracking.modules.order.model.dto.response.OrderResponse
 import com.example.cargotracking.modules.order.model.types.OrderStatus
@@ -49,7 +47,7 @@ class OrderController(
             currentUserRole = principal.role
         )
 
-        return ResponseEntity.ok(OrderResponse.from(order))
+        return ResponseEntity.ok(order)
     }
 
     @GetMapping
@@ -63,7 +61,7 @@ class OrderController(
             currentUserRole = principal.role
         )
 
-        return ResponseEntity.ok(orders.map(OrderResponse::from))
+        return ResponseEntity.ok(orders)
     }
 
     @GetMapping("/status/{status}")
@@ -79,7 +77,7 @@ class OrderController(
             currentUserRole = principal.role
         )
 
-        return ResponseEntity.ok(orders.map(OrderResponse::from))
+        return ResponseEntity.ok(orders)
     }
 
     @GetMapping("/pending")
@@ -92,7 +90,7 @@ class OrderController(
             providerId = principal.userId
         )
 
-        return ResponseEntity.ok(orders.map(OrderResponse::from))
+        return ResponseEntity.ok(orders)
     }
 
     @PostMapping("/{id}/accept")
@@ -124,6 +122,24 @@ class OrderController(
             orderId = id,
             request = request,
             providerId = principal.userId
+        )
+
+        return ResponseEntity.ok(order)
+    }
+
+    @PostMapping("/{id}/cancel")
+    fun cancelOrder(
+        @PathVariable id: UUID,
+        @Valid @RequestBody request: CancelOrderRequest,
+        authentication: Authentication
+    ): ResponseEntity<OrderResponse> {
+        val principal = authentication.principal as UserPrincipal
+
+        val order = orderService.cancelOrder(
+            orderId = id,
+            request = request,
+            currentUserId = principal.userId,
+            currentUserRole = principal.role
         )
 
         return ResponseEntity.ok(order)

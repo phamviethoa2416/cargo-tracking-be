@@ -1,15 +1,15 @@
 package com.example.cargotracking.modules.order.service
 
-import com.example.cargotracking.modules.order.model.dto.request.AcceptOrderRequest
-import com.example.cargotracking.modules.order.model.dto.request.CreateOrderRequest
-import com.example.cargotracking.modules.order.model.dto.request.OrderFilterRequest
-import com.example.cargotracking.modules.order.model.dto.request.RejectOrderRequest
+import com.example.cargotracking.modules.order.model.dto.request.order.*
+import com.example.cargotracking.modules.order.model.dto.request.provider.*
 import com.example.cargotracking.modules.order.model.dto.response.OrderListResponse
 import com.example.cargotracking.modules.order.model.dto.response.OrderResponse
 import com.example.cargotracking.modules.order.model.entity.Order
 import com.example.cargotracking.modules.order.model.types.OrderStatus
 import com.example.cargotracking.modules.order.repository.OrderRepository
+import com.example.cargotracking.modules.order.repository.OrderSpecification
 import com.example.cargotracking.modules.shipment.model.entity.Shipment
+import com.example.cargotracking.modules.shipment.model.types.ShipmentStatus
 import com.example.cargotracking.modules.shipment.repository.ShipmentRepository
 import com.example.cargotracking.modules.user.model.types.UserRole
 import com.example.cargotracking.modules.user.repository.UserRepository
@@ -78,29 +78,31 @@ class OrderService(
         id: UUID,
         currentUserId: UUID,
         currentUserRole: UserRole
-    ): Order {
+    ): OrderResponse {
         val order = orderRepository.findById(id)
             .orElseThrow { NoSuchElementException("Order not found with id: $id") }
 
         validateReadAccess(order, currentUserId, currentUserRole)
-        return order
+        return OrderResponse.from(order)
     }
 
     @Transactional(readOnly = true)
     fun getAllOrders(
         currentUserId: UUID,
         currentUserRole: UserRole
-    ): List<Order> {
-        return when (currentUserRole) {
+    ): List<OrderResponse> {
+        val orders = when (currentUserRole) {
             UserRole.CUSTOMER -> orderRepository.findByCustomerId(currentUserId)
             UserRole.PROVIDER -> orderRepository.findByProviderId(currentUserId)
-            UserRole.SHIPPER, UserRole.ADMIN -> emptyList() // Shippers and Admins don't see orders
+            UserRole.SHIPPER, UserRole.ADMIN -> emptyList()
         }
+        return orders.map(OrderResponse::from)
     }
 
     @Transactional(readOnly = true)
-    fun getPendingOrders(providerId: UUID): List<Order> {
-        return orderRepository.findByProviderIdAndStatus(providerId, OrderStatus.PENDING)
+    fun getPendingOrders(providerId: UUID): List<OrderResponse> {
+        val orders = orderRepository.findByProviderIdAndStatus(providerId, OrderStatus.PENDING)
+        return orders.map(OrderResponse::from)
     }
 
     @Transactional(readOnly = true)
@@ -108,14 +110,24 @@ class OrderService(
         status: OrderStatus,
         currentUserId: UUID,
         currentUserRole: UserRole
-    ): List<Order> {
-        val allByStatus = orderRepository.findByStatus(status)
-
-        return when (currentUserRole) {
-            UserRole.CUSTOMER -> allByStatus.filter { it.customerId == currentUserId }
-            UserRole.PROVIDER -> allByStatus.filter { it.providerId == currentUserId }
-            UserRole.SHIPPER, UserRole.ADMIN -> emptyList()
+    ): List<OrderResponse> {
+        val customerIdFilter = when (currentUserRole) {
+            UserRole.CUSTOMER -> currentUserId
+            else -> null
         }
+        val providerIdFilter = when (currentUserRole) {
+            UserRole.PROVIDER -> currentUserId
+            else -> null
+        }
+
+        val spec = OrderSpecification.buildSpecification(
+            status = status,
+            customerId = customerIdFilter,
+            providerId = providerIdFilter
+        )
+
+        val orders = orderRepository.findAll(spec)
+        return orders.map(OrderResponse::from)
     }
 
     @Transactional
@@ -127,8 +139,8 @@ class OrderService(
         val order = orderRepository.findById(orderId)
             .orElseThrow { NoSuchElementException("Order not found with id: $orderId") }
 
-        if (order.providerId != providerId) {
-            throw IllegalStateException("Order does not belong to this provider")
+        if (!order.canBeAcceptedBy(providerId)) {
+            throw IllegalStateException("Order cannot be accepted. Order status: ${order.status}, Provider ID mismatch: ${order.providerId} != $providerId")
         }
 
         val provider = userRepository.findById(providerId)
@@ -138,7 +150,10 @@ class OrderService(
             throw IllegalStateException("Only PROVIDER can accept orders")
         }
 
-        // Create shipment from order
+        if (!provider.isActive) {
+            throw IllegalStateException("Provider account is not active")
+        }
+
         val shipment = Shipment.create(
             customerId = order.customerId,
             providerId = order.providerId,
@@ -149,7 +164,6 @@ class OrderService(
         )
         val savedShipment = shipmentRepository.save(shipment)
 
-        // Accept order with shipment ID
         order.accept(savedShipment.id)
         val savedOrder = orderRepository.save(order)
 
@@ -165,8 +179,8 @@ class OrderService(
         val order = orderRepository.findById(orderId)
             .orElseThrow { NoSuchElementException("Order not found with id: $orderId") }
 
-        if (order.providerId != providerId) {
-            throw IllegalStateException("Order does not belong to this provider")
+        if (!order.canBeRejectedBy(providerId)) {
+            throw IllegalStateException("Order cannot be rejected. Order status: ${order.status}, Provider ID mismatch: ${order.providerId} != $providerId")
         }
 
         val provider = userRepository.findById(providerId)
@@ -176,7 +190,53 @@ class OrderService(
             throw IllegalStateException("Only PROVIDER can reject orders")
         }
 
-        order.reject(request.reason)
+        if (!provider.isActive) {
+            throw IllegalStateException("Provider account is not active")
+        }
+
+        val trimmedReason = request.reason.trim()
+        require(trimmedReason.length >= 5) {
+            "Rejection reason must be at least 5 characters to provide meaningful feedback"
+        }
+
+        order.reject(trimmedReason)
+        val savedOrder = orderRepository.save(order)
+
+        return OrderResponse.from(savedOrder)
+    }
+
+    @Transactional
+    fun cancelOrder(
+        orderId: UUID,
+        request: CancelOrderRequest,
+        currentUserId: UUID,
+        currentUserRole: UserRole
+    ): OrderResponse {
+        val order = orderRepository.findById(orderId)
+            .orElseThrow { NoSuchElementException("Order not found with id: $orderId") }
+
+        if (!order.canBeCancelledBy(currentUserId, currentUserRole)) {
+            throw IllegalStateException("Order cannot be cancelled. Order status: ${order.status}, User: $currentUserId, Role: $currentUserRole")
+        }
+
+        val user = userRepository.findById(currentUserId)
+            .orElseThrow { NoSuchElementException("User not found with id: $currentUserId") }
+
+        if (!user.isActive) {
+            throw IllegalStateException("User account is not active")
+        }
+
+        order.shipmentId?.let { shipmentId ->
+            val shipment = shipmentRepository.findById(shipmentId).orElse(null)
+            shipment?.let {
+                if (it.status != ShipmentStatus.COMPLETED && it.status != ShipmentStatus.CANCELLED) {
+                    it.cancel()
+                    shipmentRepository.save(it)
+                }
+            }
+        }
+
+        order.cancel(request.reason)
         val savedOrder = orderRepository.save(order)
 
         return OrderResponse.from(savedOrder)
@@ -198,6 +258,15 @@ class OrderService(
             else -> null
         }
 
+        val specification = OrderSpecification.buildSpecification(
+            status = request.status,
+            customerId = customerIdFilter ?: request.customerId,
+            providerId = providerIdFilter ?: request.providerId,
+            createdAfter = request.createdAfter,
+            createdBefore = request.createdBefore,
+            search = request.search
+        )
+
         val pageable = PageRequest.of(
             request.page - 1,
             request.pageSize,
@@ -208,15 +277,7 @@ class OrderService(
             )
         )
 
-        val page = orderRepository.findWithFilters(
-            status = request.status,
-            customerId = customerIdFilter,
-            providerId = providerIdFilter,
-            createdAfter = request.createdAfter,
-            createdBefore = request.createdBefore,
-            search = request.search,
-            pageable = pageable
-        )
+        val page = orderRepository.findAll(specification, pageable)
 
         return OrderListResponse(
             orders = page.content.map(OrderResponse::from),
@@ -225,6 +286,45 @@ class OrderService(
             pageSize = request.pageSize,
             totalPages = page.totalPages
         )
+    }
+
+    @Transactional
+    fun syncOrderStatusFromShipment(shipmentId: UUID) {
+        val orderOpt = orderRepository.findByShipmentId(shipmentId)
+        if (!orderOpt.isPresent) {
+            return
+        }
+        val order = orderOpt.get()
+
+        val shipmentOpt = shipmentRepository.findById(shipmentId)
+        if (!shipmentOpt.isPresent) {
+            return
+        }
+        val shipment = shipmentOpt.get()
+
+        when (shipment.status) {
+            ShipmentStatus.IN_TRANSIT -> {
+                if (order.status == OrderStatus.ACCEPTED) {
+                    order.markInProgress()
+                    orderRepository.save(order)
+                }
+            }
+            ShipmentStatus.COMPLETED -> {
+                if (order.status == OrderStatus.IN_PROGRESS) {
+                    order.markCompleted()
+                    orderRepository.save(order)
+                }
+            }
+            ShipmentStatus.CANCELLED -> {
+                if (order.status !in listOf(OrderStatus.REJECTED, OrderStatus.CANCELLED, OrderStatus.COMPLETED)) {
+                    order.cancel("Shipment was cancelled")
+                    orderRepository.save(order)
+                }
+            }
+            else -> {
+                // No status change needed for other shipment statuses
+            }
+        }
     }
 
     private fun validateReadAccess(order: Order, currentUserId: UUID, currentUserRole: UserRole) {

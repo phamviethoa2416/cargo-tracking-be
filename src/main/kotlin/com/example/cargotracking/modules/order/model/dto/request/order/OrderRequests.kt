@@ -1,5 +1,6 @@
-package com.example.cargotracking.modules.order.model.dto.request
+package com.example.cargotracking.modules.order.model.dto.request.order
 
+import com.example.cargotracking.modules.order.model.types.OrderStatus
 import jakarta.validation.constraints.Max
 import jakarta.validation.constraints.Min
 import jakarta.validation.constraints.NotBlank
@@ -52,3 +53,23 @@ data class CreateOrderRequest(
     @field:Size(max = 1000, message = "Special requirements must be at most 1000 characters")
     val specialRequirements: String? = null
 )
+
+data class CancelOrderRequest(
+    @field:NotBlank(message = "Cancellation reason is required")
+    @field:Size(min = 10, max = 500, message = "Cancellation reason must be 10-500 characters")
+    val reason: String
+)
+
+data class OrderFilterRequest(
+    val status: OrderStatus? = null,
+    val customerId: UUID? = null,
+    val providerId: UUID? = null,
+    val createdAfter: Instant? = null,
+    val createdBefore: Instant? = null,
+    val search: String? = null,
+    val page: Int = 1,
+    val pageSize: Int = 20,
+    val sortBy: String? = "createdAt",
+    val sortOrder: String? = "desc"
+)
+

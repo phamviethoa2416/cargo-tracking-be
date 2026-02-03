@@ -2,6 +2,7 @@ package com.example.cargotracking.modules.order.model.entity
 
 import com.example.cargotracking.common.entity.BaseEntity
 import com.example.cargotracking.modules.order.model.types.OrderStatus
+import com.example.cargotracking.modules.user.model.types.UserRole
 import jakarta.persistence.Column
 import jakarta.persistence.Entity
 import jakarta.persistence.EnumType
@@ -83,83 +84,74 @@ class Order private constructor(
 
 ) : BaseEntity(id) {
     protected constructor() : this(
-        id = UUID.randomUUID(),
-        customerId = UUID.randomUUID(),
-        providerId = UUID.randomUUID(),
+        id = UUID(0, 0),
+        customerId = UUID(0, 0),
+        providerId = UUID(0, 0),
         goodsDescription = "",
         pickupAddress = "",
         deliveryAddress = ""
     )
 
     override fun validateInvariants() {
-        check(customerId != UUID(0, 0)) {
-            "Customer ID must be valid"
-        }
-
-        check(providerId != UUID(0, 0)) {
-            "Provider ID must be valid"
-        }
-
-        check(pickupAddress.isNotBlank() && pickupAddress.length <= 500) {
-            "Pickup address must be 1-500 characters"
-        }
-
-        check(deliveryAddress.isNotBlank() && deliveryAddress.length <= 500) {
-            "Delivery address must be 1-500 characters"
-        }
-
-        check(goodsDescription.isNotBlank() && goodsDescription.length <= 1000) {
-            "Goods description must be 1-1000 characters"
-        }
-
         if (requireTemperatureTracking) {
-            minTemperature?.let { min ->
-                maxTemperature?.let { max ->
-                    check(min <= max) {
-                        "Min temperature must be less than or equal to max temperature"
-                    }
-                }
+            check(minTemperature != null && maxTemperature != null) {
+                "Temperature tracking requires min and max temperature"
+            }
+            check(minTemperature!! <= maxTemperature!!) {
+                "Min temperature must be <= max temperature"
             }
         }
 
         if (requireHumidityTracking) {
-            minHumidity?.let { min ->
-                check(min in 0.0..100.0) {
-                    "Min humidity must be between 0 and 100"
-                }
+            check(minHumidity != null && maxHumidity != null) {
+                "Humidity tracking requires min and max humidity"
             }
-            maxHumidity?.let { max ->
-                check(max in 0.0..100.0) {
-                    "Max humidity must be between 0 and 100"
-                }
+            check(minHumidity!! in 0.0..100.0 && maxHumidity!! in 0.0..100.0) {
+                "Humidity must be between 0 and 100"
             }
-            minHumidity?.let { min ->
-                maxHumidity?.let { max ->
-                    check(min <= max) {
-                        "Min humidity must be less than or equal to max humidity"
-                    }
-                }
+            check(minHumidity!! <= maxHumidity!!) {
+                "Min humidity must be <= max humidity"
             }
         }
 
         when (status) {
             OrderStatus.ACCEPTED -> {
                 check(shipmentId != null) {
-                    "ACCEPTED order must have a shipment ID"
+                    "Accepted order must have shipmentId"
                 }
                 check(processedAt != null) {
-                    "ACCEPTED order must have processed timestamp"
+                    "Accepted order must have processedAt"
                 }
             }
+
             OrderStatus.REJECTED -> {
-                check(rejectionReason != null && rejectionReason!!.isNotBlank()) {
-                    "REJECTED order must have a rejection reason"
+                check(!rejectionReason.isNullOrBlank()) {
+                    "Rejected order must have rejection reason"
                 }
                 check(processedAt != null) {
-                    "REJECTED order must have processed timestamp"
+                    "Rejected order must have processedAt"
                 }
             }
-            else -> {}
+
+            OrderStatus.IN_PROGRESS -> {
+                check(shipmentId != null) {
+                    "In progress order must have shipmentId"
+                }
+            }
+
+            OrderStatus.COMPLETED -> {
+                check(shipmentId != null) {
+                    "Completed order must have shipmentId"
+                }
+            }
+
+            OrderStatus.CANCELLED -> {
+                check(!rejectionReason.isNullOrBlank()) {
+                    "Cancelled order must have cancellation reason"
+                }
+            }
+
+            OrderStatus.PENDING -> Unit
         }
     }
 
@@ -180,8 +172,6 @@ class Order private constructor(
             requireLocationTracking: Boolean = true,
             specialRequirements: String? = null
         ): Order {
-            require(customerId != UUID(0, 0)) { "Customer ID must be valid" }
-            require(providerId != UUID(0, 0)) { "Provider ID must be valid" }
             require(goodsDescription.isNotBlank()) { "Goods description is required" }
             require(goodsDescription.length <= 1000) { "Goods description must be at most 1000 characters" }
             require(pickupAddress.isNotBlank()) { "Pickup address is required" }
@@ -222,6 +212,7 @@ class Order private constructor(
         this.shipmentId = shipmentId
         this.status = OrderStatus.ACCEPTED
         this.processedAt = Instant.now()
+        validateInvariants()
     }
 
     fun reject(reason: String) {
@@ -231,13 +222,74 @@ class Order private constructor(
         require(reason.isNotBlank()) {
             "Rejection reason is required"
         }
-        require(reason.length <= 500) {
-            "Rejection reason must be at most 500 characters"
+        require(reason.length in 5..500) {
+            "Rejection reason must be 5-500 characters"
         }
 
         this.rejectionReason = reason.trim()
         this.status = OrderStatus.REJECTED
         this.processedAt = Instant.now()
+        validateInvariants()
+    }
+    
+    fun canBeAcceptedBy(providerId: UUID): Boolean {
+        return status == OrderStatus.PENDING && this.providerId == providerId
+    }
+    
+    fun canBeRejectedBy(providerId: UUID): Boolean {
+        return status == OrderStatus.PENDING && this.providerId == providerId
+    }
+    
+    fun canBeCancelledBy(userId: UUID, userRole: UserRole): Boolean {
+        if (status in listOf(OrderStatus.REJECTED, OrderStatus.COMPLETED, OrderStatus.CANCELLED)) {
+            return false
+        }
+        return when (userRole) {
+            UserRole.CUSTOMER -> customerId == userId
+            UserRole.PROVIDER -> providerId == userId
+            else -> false
+        }
+    }
+    
+    fun markInProgress() {
+        require(status == OrderStatus.ACCEPTED) {
+            "Only ACCEPTED orders can be marked as IN_PROGRESS. Current status: $status"
+        }
+        require(shipmentId != null) {
+            "Order must have shipmentId to be marked as IN_PROGRESS"
+        }
+        
+        this.status = OrderStatus.IN_PROGRESS
+        validateInvariants()
+    }
+    
+    fun markCompleted() {
+        require(status == OrderStatus.IN_PROGRESS) {
+            "Only IN_PROGRESS orders can be marked as COMPLETED. Current status: $status"
+        }
+        require(shipmentId != null) {
+            "Order must have shipmentId to be marked as COMPLETED"
+        }
+        
+        this.status = OrderStatus.COMPLETED
+        validateInvariants()
+    }
+    
+    fun cancel(reason: String) {
+        require(status in listOf(OrderStatus.PENDING, OrderStatus.ACCEPTED, OrderStatus.IN_PROGRESS)) {
+            "Cannot cancel order in status: $status"
+        }
+        require(reason.isNotBlank()) {
+            "Cancellation reason is required"
+        }
+        require(reason.length in 10..500) {
+            "Cancellation reason must be 10-500 characters"
+        }
+        
+        this.rejectionReason = reason.trim()
+        this.status = OrderStatus.CANCELLED
+        this.processedAt = Instant.now()
+        validateInvariants()
     }
 
     override fun equals(other: Any?): Boolean {
