@@ -347,6 +347,12 @@ class OrderService(
                     orderRepository.save(order)
                 }
             }
+            ShipmentStatus.FAILED -> {
+                if (order.status !in listOf(OrderStatus.REJECTED, OrderStatus.CANCELLED, OrderStatus.COMPLETED)) {
+                    order.cancel("Shipment failed")
+                    orderRepository.save(order)
+                }
+            }
             else -> {
                 // No status change needed for other shipment statuses
             }

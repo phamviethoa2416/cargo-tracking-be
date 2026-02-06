@@ -110,6 +110,9 @@ class Shipment private constructor(
                     "COMPLETED shipment must have actual delivery time"
                 }
             }
+            ShipmentStatus.FAILED -> {
+
+            }
             else -> {}
         }
     }
@@ -220,6 +223,17 @@ class Shipment private constructor(
         }
 
         status = ShipmentStatus.CANCELLED
+    }
+
+    fun fail(reason: String) {
+        require(status == ShipmentStatus.IN_TRANSIT) {
+            "Only IN_TRANSIT shipments can be marked as failed. Current status: $status"
+        }
+        require(reason.isNotBlank() && reason.length <= 500) {
+            "Failure reason must be 1-500 characters"
+        }
+
+        status = ShipmentStatus.FAILED
     }
 
     fun updateGoodsDescription(description: String) {

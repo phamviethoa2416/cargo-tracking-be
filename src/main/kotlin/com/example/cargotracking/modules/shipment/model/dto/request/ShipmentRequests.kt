@@ -29,6 +29,12 @@ data class CompleteShipmentRequest(
     val deliveredAt: Instant? = null
 )
 
+data class FailShipmentRequest(
+    @field:NotBlank(message = "Failure reason is required")
+    @field:Size(min = 10, max = 500, message = "Reason must be 10-500 characters")
+    val reason: String
+)
+
 data class ShipmentFilterRequest(
     val status: ShipmentStatus? = null,
     val shipperId: UUID? = null,

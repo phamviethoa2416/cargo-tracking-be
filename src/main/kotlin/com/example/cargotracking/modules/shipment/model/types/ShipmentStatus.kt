@@ -5,5 +5,6 @@ enum class ShipmentStatus {
     READY,
     IN_TRANSIT,
     COMPLETED,
-    CANCELLED
+    CANCELLED,
+    FAILED
 }

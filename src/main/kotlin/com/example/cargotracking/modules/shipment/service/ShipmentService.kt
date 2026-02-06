@@ -1,10 +1,8 @@
 package com.example.cargotracking.modules.shipment.service
 
 import com.example.cargotracking.common.messaging.MessagePublisher
-import com.example.cargotracking.modules.device.model.entity.Device
 import com.example.cargotracking.modules.device.model.types.DeviceStatus
 import com.example.cargotracking.modules.device.repository.DeviceRepository
-import com.example.cargotracking.modules.order.repository.OrderRepository
 import com.example.cargotracking.modules.order.service.OrderService
 import com.example.cargotracking.modules.shipment.exception.ShipmentException
 import com.example.cargotracking.modules.shipment.model.dto.request.*
@@ -26,7 +24,6 @@ import java.util.*
 @Service
 class ShipmentService(
     private val shipmentRepository: ShipmentRepository,
-    private val orderRepository: OrderRepository,
     private val orderService: OrderService,
     private val userRepository: UserRepository,
     private val deviceRepository: DeviceRepository,
@@ -120,6 +117,12 @@ class ShipmentService(
         val shipment = shipmentRepository.findById(shipmentId)
             .orElseThrow { ShipmentException.ShipmentNotFoundException("Shipment not found with id: $shipmentId") }
 
+        if (shipment.status != ShipmentStatus.CREATED) {
+            throw ShipmentException.ShipmentInvalidStateException(
+                "Shipment must be in CREATED status to assign shipper. Current status: ${shipment.status}"
+            )
+        }
+
         if (shipment.providerId != providerId) {
             throw ShipmentException.ShipmentAccessDeniedException("Shipment does not belong to this provider")
         }
@@ -156,12 +159,18 @@ class ShipmentService(
         val shipment = shipmentRepository.findById(shipmentId)
             .orElseThrow { ShipmentException.ShipmentNotFoundException("Shipment not found with id: $shipmentId") }
 
-        if (shipment.providerId != providerId) {
-            throw ShipmentException.ShipmentAccessDeniedException("Shipment does not belong to this provider")
+        if (shipment.status != ShipmentStatus.CREATED) {
+            throw ShipmentException.ShipmentInvalidStateException(
+                "Shipment must be in CREATED status to assign device. Current status: ${shipment.status}"
+            )
         }
 
-        if (shipment.status != ShipmentStatus.CREATED) {
-            throw ShipmentException.ShipmentInvalidStateException("Only CREATED shipments can have device assigned. Current status: ${shipment.status}")
+        if (shipment.shipperId == null) {
+            throw ShipmentException.ShipmentInvalidStateException("Shipper must be assigned before device can be assigned")
+        }
+
+        if (shipment.providerId != providerId) {
+            throw ShipmentException.ShipmentAccessDeniedException("Shipment does not belong to this provider")
         }
 
         val device = deviceRepository.findById(request.deviceId)
@@ -192,10 +201,24 @@ class ShipmentService(
         shipperId: UUID
     ): ShipmentResponse {
         val shipment = shipmentRepository.findById(shipmentId)
-            .orElseThrow { NoSuchElementException("Shipment not found with id: $shipmentId") }
+            .orElseThrow { ShipmentException.ShipmentNotFoundException("Shipment not found with id: $shipmentId") }
+
+        if (shipment.status != ShipmentStatus.READY) {
+            throw ShipmentException.ShipmentInvalidStateException(
+                "Shipment must be in READY status to start transit. Current status: ${shipment.status}"
+            )
+        }
+
+        if (shipment.shipperId == null) {
+            throw ShipmentException.ShipmentInvalidStateException("Shipment must have a shipper assigned before starting transit")
+        }
 
         if (shipment.shipperId != shipperId) {
             throw ShipmentException.ShipmentAccessDeniedException("Shipment does not belong to this shipper")
+        }
+
+        if (shipment.deviceId == null) {
+            throw ShipmentException.ShipmentInvalidStateException("Shipment must have a device assigned before starting transit")
         }
 
         val shipper = userRepository.findById(shipperId)
@@ -224,21 +247,27 @@ class ShipmentService(
         shipperId: UUID
     ): ShipmentResponse {
         val shipment = shipmentRepository.findById(shipmentId)
-            .orElseThrow { NoSuchElementException("Shipment not found with id: $shipmentId") }
+            .orElseThrow { ShipmentException.ShipmentNotFoundException("Shipment not found with id: $shipmentId") }
+
+        if (shipment.status != ShipmentStatus.IN_TRANSIT) {
+            throw ShipmentException.ShipmentInvalidStateException(
+                "Shipment must be in IN_TRANSIT status to be completed. Current status: ${shipment.status}"
+            )
+        }
 
         if (shipment.shipperId != shipperId) {
-            throw IllegalStateException("Shipment does not belong to this shipper")
+            throw ShipmentException.ShipmentAccessDeniedException("Shipment does not belong to this shipper")
         }
 
         val shipper = userRepository.findById(shipperId)
-            .orElseThrow { NoSuchElementException("Shipper not found with id: $shipperId") }
+            .orElseThrow { ShipmentException.UserNotFoundException("Shipper not found with id: $shipperId") }
 
         if (shipper.role != UserRole.SHIPPER) {
-            throw IllegalStateException("Only SHIPPER can complete shipments")
+            throw ShipmentException.InvalidUserRoleException("Only SHIPPER can complete shipments")
         }
 
         if (!shipper.isActive) {
-            throw IllegalStateException("Shipper account is not active")
+            throw ShipmentException.UserAccountInactiveException("Shipper account is not active")
         }
 
         val deliveredAt = request.deliveredAt ?: Instant.now()
@@ -267,7 +296,7 @@ class ShipmentService(
         currentUserRole: UserRole
     ): ShipmentResponse {
         val shipment = shipmentRepository.findById(shipmentId)
-            .orElseThrow { NoSuchElementException("Shipment not found with id: $shipmentId") }
+            .orElseThrow { ShipmentException.ShipmentNotFoundException("Shipment not found with id: $shipmentId") }
 
         when (currentUserRole) {
             UserRole.CUSTOMER -> {
@@ -295,7 +324,60 @@ class ShipmentService(
             messagePublisher.publishShipmentAssignment(deviceId, shipmentId, "unassign")
         }
 
+        if (shipment.status !in listOf(ShipmentStatus.CREATED, ShipmentStatus.READY, ShipmentStatus.IN_TRANSIT)) {
+            throw ShipmentException.ShipmentInvalidStateException(
+                "Cannot cancel shipment in status: ${shipment.status}. Only CREATED, READY, or IN_TRANSIT shipments can be cancelled"
+            )
+        }
+
         shipment.cancel()
+        val savedShipment = shipmentRepository.save(shipment)
+        orderService.syncOrderStatusFromShipment(shipmentId)
+        
+        return ShipmentResponse.from(savedShipment)
+    }
+
+    @Transactional
+    fun failShipment(
+        shipmentId: UUID,
+        request: FailShipmentRequest,
+        shipperId: UUID
+    ): ShipmentResponse {
+        val shipment = shipmentRepository.findById(shipmentId)
+            .orElseThrow { ShipmentException.ShipmentNotFoundException("Shipment not found with id: $shipmentId") }
+
+        if (shipment.status != ShipmentStatus.IN_TRANSIT) {
+            throw ShipmentException.ShipmentInvalidStateException(
+                "Shipment must be in IN_TRANSIT status to be marked as failed. Current status: ${shipment.status}"
+            )
+        }
+
+        if (shipment.shipperId != shipperId) {
+            throw ShipmentException.ShipmentAccessDeniedException("Shipment does not belong to this shipper")
+        }
+
+        val shipper = userRepository.findById(shipperId)
+            .orElseThrow { ShipmentException.UserNotFoundException("Shipper not found with id: $shipperId") }
+
+        if (shipper.role != UserRole.SHIPPER) {
+            throw ShipmentException.InvalidUserRoleException("Only SHIPPER can mark shipments as failed")
+        }
+
+        if (!shipper.isActive) {
+            throw ShipmentException.UserAccountInactiveException("Shipper account is not active")
+        }
+
+        shipment.fail(request.reason.trim())
+
+        shipment.deviceId?.let { deviceId ->
+            val device = deviceRepository.findById(deviceId)
+                .orElseThrow { ShipmentException.DeviceNotFoundException("Device not found with id: $deviceId") }
+            device.releaseFromShipment()
+            deviceRepository.save(device)
+
+            messagePublisher.publishShipmentAssignment(deviceId, shipmentId, "unassign")
+        }
+
         val savedShipment = shipmentRepository.save(shipment)
         orderService.syncOrderStatusFromShipment(shipmentId)
         

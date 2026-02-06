@@ -145,6 +145,22 @@ class ShipmentController(
         return ResponseEntity.ok(shipment)
     }
 
+    @PatchMapping("/{id}/fail")
+    @PreAuthorize("hasRole('SHIPPER')")
+    fun failShipment(
+        @PathVariable id: UUID,
+        @Valid @RequestBody request: FailShipmentRequest,
+        @AuthenticationPrincipal principal: UserPrincipal
+    ): ResponseEntity<ShipmentResponse> {
+        val shipment = shipmentService.failShipment(
+            shipmentId = id,
+            request = request,
+            shipperId = principal.userId
+        )
+
+        return ResponseEntity.ok(shipment)
+    }
+
     @PostMapping("/filter")
     @PreAuthorize("hasAnyRole('CUSTOMER', 'PROVIDER', 'SHIPPER')")
     fun filterShipments(
