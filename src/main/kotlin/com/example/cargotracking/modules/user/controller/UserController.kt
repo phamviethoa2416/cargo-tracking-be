@@ -2,6 +2,7 @@ package com.example.cargotracking.modules.user.controller
 
 import com.example.cargotracking.modules.user.model.dto.request.user.*
 import com.example.cargotracking.common.response.SuccessResponse
+import com.example.cargotracking.modules.user.model.dto.response.UserListResponse
 import com.example.cargotracking.modules.user.model.dto.response.UserResponse
 import com.example.cargotracking.modules.user.model.types.UserRole
 import com.example.cargotracking.modules.user.principal.UserPrincipal
@@ -16,6 +17,7 @@ import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PutMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
+import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
 import java.util.UUID
 
@@ -62,9 +64,12 @@ class UserController(
 
     @GetMapping
     @PreAuthorize("hasRole('ADMIN')")
-    fun getAllUsers(): ResponseEntity<List<UserResponse>> {
-        val users = userService.getAllUsers()
-        return ResponseEntity.ok(users)
+    fun getAllUsers(
+        @RequestParam(defaultValue = "1") page: Int,
+        @RequestParam(defaultValue = "20") pageSize: Int
+    ): ResponseEntity<UserListResponse> {
+        val response = userService.getAllUsers(page = page, pageSize = pageSize)
+        return ResponseEntity.ok(response)
     }
 
     @GetMapping("/role/{role}")

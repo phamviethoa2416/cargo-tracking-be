@@ -32,3 +32,11 @@ data class UserResponse(
         )
     }
 }
+
+data class UserListResponse(
+    val users: List<UserResponse>,
+    val total: Long,
+    val page: Int,
+    val pageSize: Int,
+    val totalPages: Int
+)

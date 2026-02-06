@@ -3,11 +3,14 @@ package com.example.cargotracking.modules.user.service
 import com.example.cargotracking.modules.user.exception.UserException
 import com.example.cargotracking.modules.user.model.dto.request.user.*
 import com.example.cargotracking.common.response.SuccessResponse
+import com.example.cargotracking.modules.user.model.dto.response.UserListResponse
 import com.example.cargotracking.modules.user.model.dto.response.UserResponse
 import com.example.cargotracking.modules.user.model.entity.User
 import com.example.cargotracking.modules.user.model.types.UserRole
 import com.example.cargotracking.modules.user.repository.RefreshTokenRepository
 import com.example.cargotracking.modules.user.repository.UserRepository
+import org.springframework.data.domain.PageRequest
+import org.springframework.data.domain.Sort
 import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -25,7 +28,26 @@ class UserService(
         userRepository.findById(id).orElseThrow { UserException.UserNotFoundException("User not found with $id") }
 
     @Transactional(readOnly = true)
-    fun getAllUsers(): List<UserResponse> = userRepository.findAll().map { UserResponse.from(it) }
+    fun getAllUsers(
+        page: Int = 1,
+        pageSize: Int = 20
+    ): UserListResponse {
+        val pageable = PageRequest.of(
+            page - 1,
+            pageSize,
+            Sort.by(Sort.Direction.DESC, "createdAt")
+        )
+
+        val usersPage = userRepository.findAll(pageable)
+
+        return UserListResponse(
+            users = usersPage.content.map(UserResponse::from),
+            total = usersPage.totalElements,
+            page = page,
+            pageSize = pageSize,
+            totalPages = usersPage.totalPages
+        )
+    }
 
     @Transactional(readOnly = true)
     fun getUsersByRole(role: UserRole): List<UserResponse> {
