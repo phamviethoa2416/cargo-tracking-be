@@ -22,7 +22,6 @@ data class ShipmentResponse(
     val estimatedDeliveryAt: Instant?,
     val actualDeliveryAt: Instant?,
 
-    val isDelayed: Boolean,
 
     val createdAt: Instant?,
     val updatedAt: Instant?
@@ -41,24 +40,17 @@ data class ShipmentResponse(
                 deliveryAddress = shipment.deliveryAddress,
                 estimatedDeliveryAt = shipment.estimatedDeliveryAt,
                 actualDeliveryAt = shipment.actualDeliveryAt,
-                isDelayed = calculateDelay(shipment),
                 createdAt = shipment.createdAt,
                 updatedAt = shipment.updatedAt
             )
         }
-
-        private fun calculateDelay(shipment: Shipment): Boolean {
-            val estimatedDelivery = shipment.estimatedDeliveryAt ?: return false
-
-            return when {
-                shipment.actualDeliveryAt != null ->
-                    shipment.actualDeliveryAt!!.isAfter(estimatedDelivery)
-
-                shipment.status == ShipmentStatus.IN_TRANSIT ->
-                    Instant.now().isAfter(estimatedDelivery)
-
-                else -> false
-            }
-        }
     }
 }
+
+data class ShipmentListResponse(
+    val shipments: List<ShipmentResponse>,
+    val total: Long,
+    val page: Int,
+    val pageSize: Int,
+    val totalPages: Int
+)

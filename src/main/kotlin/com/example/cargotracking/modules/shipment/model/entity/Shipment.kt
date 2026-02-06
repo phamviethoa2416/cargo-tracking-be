@@ -40,7 +40,7 @@ class Shipment private constructor(
 
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false)
-    var status: ShipmentStatus = ShipmentStatus.PENDING,
+    var status: ShipmentStatus = ShipmentStatus.CREATED,
 
     @Column(name = "goods_description", nullable = false, length = 1000)
     var goodsDescription: String,
@@ -89,9 +89,12 @@ class Shipment private constructor(
         }
 
         when (status) {
-            ShipmentStatus.ASSIGNED -> {
+            ShipmentStatus.READY -> {
                 check(shipperId != null) {
-                    "ASSIGNED shipment must have shipper"
+                    "READY shipment must have shipper"
+                }
+                check(deviceId != null) {
+                    "READY shipment must have device"
                 }
             }
             ShipmentStatus.IN_TRANSIT -> {
@@ -135,7 +138,7 @@ class Shipment private constructor(
                 pickupAddress = pickupAddress.trim(),
                 deliveryAddress = deliveryAddress.trim(),
                 estimatedDeliveryAt = estimatedDeliveryAt,
-                status = ShipmentStatus.PENDING
+                status = ShipmentStatus.CREATED
             )
 
             shipment.validateInvariants()
@@ -144,28 +147,34 @@ class Shipment private constructor(
     }
 
     fun assignShipper(newShipperId: UUID) {
-        require(status == ShipmentStatus.PENDING) {
-            "Only PENDING shipments can be assigned. Current status: $status"
+        require(status == ShipmentStatus.CREATED) {
+            "Only CREATED shipments can have shipper assigned. Current status: $status"
         }
         require(newShipperId != UUID(0, 0)) { "Shipper ID must be valid" }
 
         shipperId = newShipperId
-        status = ShipmentStatus.ASSIGNED
     }
 
     fun assignDevice(newDeviceId: UUID) {
-        require(status == ShipmentStatus.ASSIGNED) {
-            "Only ASSIGNED shipments can have device assigned. Current status: $status"
+        require(status == ShipmentStatus.CREATED) {
+            "Only CREATED shipments can have device assigned. Current status: $status"
+        }
+        require(shipperId != null) {
+            "Shipper must be assigned before device"
         }
         require(newDeviceId != UUID(0, 0)) {
             "Device ID must be valid"
         }
         deviceId = newDeviceId
+        status = ShipmentStatus.READY
     }
 
     fun startTransit() {
-        require(status == ShipmentStatus.ASSIGNED) {
-            "Only ASSIGNED shipments can start transit. Current status: $status"
+        require(status == ShipmentStatus.READY) {
+            "Only READY shipments can start transit. Current status: $status"
+        }
+        require(shipperId != null) {
+            "Shipment must have a shipper assigned before starting transit"
         }
         require(deviceId != null) {
             "Shipment must have a device assigned before starting transit"
@@ -173,12 +182,23 @@ class Shipment private constructor(
         status = ShipmentStatus.IN_TRANSIT
     }
 
+    fun unassignDevice() {
+        require(status == ShipmentStatus.READY) {
+            "Only READY shipments can have device unassigned. Current status: $status"
+        }
+        deviceId = null
+        status = ShipmentStatus.CREATED
+    }
+
     fun unassignShipper() {
-        require(status == ShipmentStatus.ASSIGNED) {
-            "Only ASSIGNED shipments can be unassigned"
+        require(status == ShipmentStatus.READY) {
+            "Only READY shipments can have shipper unassigned. Current status: $status"
+        }
+        require(deviceId == null) {
+            "Device must be unassigned before unassigning shipper"
         }
         shipperId = null
-        status = ShipmentStatus.PENDING
+        status = ShipmentStatus.CREATED
     }
 
 
@@ -192,8 +212,8 @@ class Shipment private constructor(
 
     fun cancel() {
         require(status in listOf(
-            ShipmentStatus.PENDING,
-            ShipmentStatus.ASSIGNED,
+            ShipmentStatus.CREATED,
+            ShipmentStatus.READY,
             ShipmentStatus.IN_TRANSIT
         )) {
             "Cannot cancel shipment in status: $status"
@@ -206,8 +226,8 @@ class Shipment private constructor(
         require(description.isNotBlank() && description.length <= 1000) {
             "Goods description must be 1-1000 characters"
         }
-        require(status == ShipmentStatus.PENDING) {
-            "Only PENDING shipments can be updated. Current status: $status"
+        require(status == ShipmentStatus.CREATED) {
+            "Only CREATED shipments can be updated. Current status: $status"
         }
         goodsDescription = description.trim()
     }
@@ -216,8 +236,8 @@ class Shipment private constructor(
         require(address.isNotBlank() && address.length <= 500) {
             "Pickup address must be 1-500 characters"
         }
-        require(status == ShipmentStatus.PENDING) {
-            "Only PENDING shipments can be updated. Current status: $status"
+        require(status == ShipmentStatus.CREATED) {
+            "Only CREATED shipments can be updated. Current status: $status"
         }
         pickupAddress = address.trim()
     }
@@ -226,15 +246,15 @@ class Shipment private constructor(
         require(address.isNotBlank() && address.length <= 500) {
             "Delivery address must be 1-500 characters"
         }
-        require(status == ShipmentStatus.PENDING) {
-            "Only PENDING shipments can be updated. Current status: $status"
+        require(status == ShipmentStatus.CREATED) {
+            "Only CREATED shipments can be updated. Current status: $status"
         }
         deliveryAddress = address.trim()
     }
 
     fun updateEstimatedDeliveryAt(newEstimatedDeliveryAt: Instant?) {
-        require(status == ShipmentStatus.PENDING) {
-            "Only PENDING shipments can be updated. Current status: $status"
+        require(status == ShipmentStatus.CREATED) {
+            "Only CREATED shipments can be updated. Current status: $status"
         }
         estimatedDeliveryAt = newEstimatedDeliveryAt
     }

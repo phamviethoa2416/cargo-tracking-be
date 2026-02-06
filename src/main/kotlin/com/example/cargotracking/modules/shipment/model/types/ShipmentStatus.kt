@@ -1,8 +1,8 @@
 package com.example.cargotracking.modules.shipment.model.types
 
 enum class ShipmentStatus {
-    PENDING,
-    ASSIGNED,
+    CREATED,
+    READY,
     IN_TRANSIT,
     COMPLETED,
     CANCELLED

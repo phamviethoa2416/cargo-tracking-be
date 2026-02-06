@@ -3,12 +3,15 @@ package com.example.cargotracking.modules.shipment.service
 import com.example.cargotracking.common.messaging.MessagePublisher
 import com.example.cargotracking.modules.device.model.types.DeviceStatus
 import com.example.cargotracking.modules.device.repository.DeviceRepository
+import com.example.cargotracking.modules.order.repository.OrderRepository
+import com.example.cargotracking.modules.order.service.OrderService
 import com.example.cargotracking.modules.shipment.model.dto.request.*
 import com.example.cargotracking.modules.shipment.model.dto.response.ShipmentListResponse
 import com.example.cargotracking.modules.shipment.model.dto.response.ShipmentResponse
 import com.example.cargotracking.modules.shipment.model.entity.Shipment
 import com.example.cargotracking.modules.shipment.model.types.ShipmentStatus
 import com.example.cargotracking.modules.shipment.repository.ShipmentRepository
+import com.example.cargotracking.modules.shipment.repository.ShipmentSpecification
 import com.example.cargotracking.modules.user.model.types.UserRole
 import com.example.cargotracking.modules.user.repository.UserRepository
 import org.springframework.data.domain.PageRequest
@@ -21,50 +24,12 @@ import java.util.*
 @Service
 class ShipmentService(
     private val shipmentRepository: ShipmentRepository,
+    private val orderRepository: OrderRepository,
+    private val orderService: OrderService,
     private val userRepository: UserRepository,
     private val deviceRepository: DeviceRepository,
     private val messagePublisher: MessagePublisher
 ) {
-    @Transactional
-    fun createShipment(
-        request: CreateShipmentRequest,
-        customerId: UUID
-    ): ShipmentResponse {
-        val customer = userRepository.findById(customerId)
-            .orElseThrow { NoSuchElementException("Customer not found with id: $customerId") }
-
-        if (customer.role != UserRole.CUSTOMER) {
-            throw IllegalStateException("Only CUSTOMER can create shipments")
-        }
-
-        if (!customer.isActive) {
-            throw IllegalStateException("Customer account is not active")
-        }
-
-        val provider = userRepository.findById(request.providerId)
-            .orElseThrow { NoSuchElementException("Provider not found with id: ${request.providerId}") }
-
-        if (provider.role != UserRole.PROVIDER) {
-            throw IllegalStateException("Provider ID must belong to a PROVIDER user")
-        }
-
-        if (!provider.isActive) {
-            throw IllegalStateException("Provider account is not active")
-        }
-
-        val shipment = Shipment.create(
-            customerId = customerId,
-            providerId = request.providerId,
-            goodsDescription = request.goodsDescription,
-            pickupAddress = request.pickupAddress,
-            deliveryAddress = request.deliveryAddress,
-            estimatedDeliveryAt = request.estimatedDeliveryAt
-        )
-
-        val savedShipment = shipmentRepository.save(shipment)
-        return ShipmentResponse.from(savedShipment)
-    }
-
     @Transactional(readOnly = true)
     fun getShipmentById(
         id: UUID,
@@ -81,14 +46,44 @@ class ShipmentService(
     @Transactional(readOnly = true)
     fun getAllShipments(
         currentUserId: UUID,
-        currentUserRole: UserRole
-    ): List<Shipment> {
-        return when (currentUserRole) {
-            UserRole.CUSTOMER -> shipmentRepository.findByCustomerId(currentUserId)
-            UserRole.PROVIDER -> shipmentRepository.findByProviderId(currentUserId)
-            UserRole.SHIPPER -> shipmentRepository.findByShipperId(currentUserId)
-            UserRole.ADMIN -> emptyList()
+        currentUserRole: UserRole,
+        page: Int = 1,
+        pageSize: Int = 20
+    ): ShipmentListResponse {
+        val customerIdFilter = when (currentUserRole) {
+            UserRole.CUSTOMER -> currentUserId
+            else -> null
         }
+        val providerIdFilter = when (currentUserRole) {
+            UserRole.PROVIDER -> currentUserId
+            else -> null
+        }
+        val shipperIdFilter = when (currentUserRole) {
+            UserRole.SHIPPER -> currentUserId
+            else -> null
+        }
+
+        val spec = ShipmentSpecification.buildSpecification(
+            customerId = customerIdFilter,
+            providerId = providerIdFilter,
+            shipperId = shipperIdFilter
+        )
+
+        val pageable = PageRequest.of(
+            page - 1,
+            pageSize,
+            Sort.by(Sort.Direction.DESC, "createdAt")
+        )
+
+        val resultPage = shipmentRepository.findAll(spec, pageable)
+
+        return ShipmentListResponse(
+            shipments = resultPage.content.map(ShipmentResponse::from),
+            total = resultPage.totalElements,
+            page = page,
+            pageSize = pageSize,
+            totalPages = resultPage.totalPages
+        )
     }
 
     @Transactional
@@ -163,8 +158,8 @@ class ShipmentService(
             throw IllegalStateException("Shipment does not belong to this provider")
         }
 
-        if (shipment.status != ShipmentStatus.ASSIGNED) {
-            throw IllegalStateException("Only ASSIGNED shipments can have device assigned. Current status: ${shipment.status}")
+        if (shipment.status != ShipmentStatus.CREATED) {
+            throw IllegalStateException("Only CREATED shipments can have device assigned. Current status: ${shipment.status}")
         }
 
         val device = deviceRepository.findById(request.deviceId)
@@ -215,6 +210,8 @@ class ShipmentService(
         shipment.startTransit()
         
         val savedShipment = shipmentRepository.save(shipment)
+        orderService.syncOrderStatusFromShipment(shipmentId)
+        
         return ShipmentResponse.from(savedShipment)
     }
 
@@ -222,24 +219,24 @@ class ShipmentService(
     fun completeShipment(
         shipmentId: UUID,
         request: CompleteShipmentRequest,
-        customerId: UUID
+        shipperId: UUID
     ): ShipmentResponse {
         val shipment = shipmentRepository.findById(shipmentId)
             .orElseThrow { NoSuchElementException("Shipment not found with id: $shipmentId") }
 
-        if (shipment.customerId != customerId) {
-            throw IllegalStateException("Shipment does not belong to this customer")
+        if (shipment.shipperId != shipperId) {
+            throw IllegalStateException("Shipment does not belong to this shipper")
         }
 
-        val customer = userRepository.findById(customerId)
-            .orElseThrow { NoSuchElementException("Customer not found with id: $customerId") }
+        val shipper = userRepository.findById(shipperId)
+            .orElseThrow { NoSuchElementException("Shipper not found with id: $shipperId") }
 
-        if (customer.role != UserRole.CUSTOMER) {
-            throw IllegalStateException("Only CUSTOMER can complete shipments")
+        if (shipper.role != UserRole.SHIPPER) {
+            throw IllegalStateException("Only SHIPPER can complete shipments")
         }
 
-        if (!customer.isActive) {
-            throw IllegalStateException("Customer account is not active")
+        if (!shipper.isActive) {
+            throw IllegalStateException("Shipper account is not active")
         }
 
         val deliveredAt = request.deliveredAt ?: Instant.now()
@@ -255,6 +252,8 @@ class ShipmentService(
         }
 
         val savedShipment = shipmentRepository.save(shipment)
+        orderService.syncOrderStatusFromShipment(shipmentId)
+        
         return ShipmentResponse.from(savedShipment)
     }
 
@@ -284,7 +283,7 @@ class ShipmentService(
             }
         }
 
-        // Release device if assigned
+
         shipment.deviceId?.let { deviceId ->
             val device = deviceRepository.findById(deviceId)
                 .orElseThrow { NoSuchElementException("Device not found with id: $deviceId") }
@@ -296,6 +295,8 @@ class ShipmentService(
 
         shipment.cancel()
         val savedShipment = shipmentRepository.save(shipment)
+        orderService.syncOrderStatusFromShipment(shipmentId)
+        
         return ShipmentResponse.from(savedShipment)
     }
 
@@ -330,7 +331,7 @@ class ShipmentService(
             )
         )
 
-        val page = shipmentRepository.findWithFilters(
+        val spec = ShipmentSpecification.buildSpecification(
             status = request.status,
             customerId = customerIdFilter,
             providerId = providerIdFilter,
@@ -338,11 +339,10 @@ class ShipmentService(
             deviceId = request.deviceId,
             createdAfter = request.createdAfter,
             createdBefore = request.createdBefore,
-            deliveryAfter = request.deliveryAfter,
-            deliveryBefore = request.deliveryBefore,
-            search = request.search,
-            pageable = pageable
+            search = request.search
         )
+
+        val page = shipmentRepository.findAll(spec, pageable)
 
         return ShipmentListResponse(
             shipments = page.content.map(ShipmentResponse::from),
@@ -357,16 +357,45 @@ class ShipmentService(
     fun getShipmentsByStatus(
         status: ShipmentStatus,
         currentUserId: UUID,
-        currentUserRole: UserRole
-    ): List<Shipment> {
-        val allByStatus = shipmentRepository.findByStatus(status)
-
-        return when (currentUserRole) {
-            UserRole.CUSTOMER -> allByStatus.filter { it.customerId == currentUserId }
-            UserRole.PROVIDER -> allByStatus.filter { it.providerId == currentUserId }
-            UserRole.SHIPPER -> allByStatus.filter { it.shipperId == currentUserId }
-            UserRole.ADMIN -> emptyList() // Admins don't see shipments
+        currentUserRole: UserRole,
+        page: Int = 1,
+        pageSize: Int = 20
+    ): ShipmentListResponse {
+        val customerIdFilter = when (currentUserRole) {
+            UserRole.CUSTOMER -> currentUserId
+            else -> null
         }
+        val providerIdFilter = when (currentUserRole) {
+            UserRole.PROVIDER -> currentUserId
+            else -> null
+        }
+        val shipperIdFilter = when (currentUserRole) {
+            UserRole.SHIPPER -> currentUserId
+            else -> null
+        }
+
+        val spec = ShipmentSpecification.buildSpecification(
+            status = status,
+            customerId = customerIdFilter,
+            providerId = providerIdFilter,
+            shipperId = shipperIdFilter
+        )
+
+        val pageable = PageRequest.of(
+            page - 1,
+            pageSize,
+            Sort.by(Sort.Direction.DESC, "createdAt")
+        )
+
+        val resultPage = shipmentRepository.findAll(spec, pageable)
+
+        return ShipmentListResponse(
+            shipments = resultPage.content.map(ShipmentResponse::from),
+            total = resultPage.totalElements,
+            page = page,
+            pageSize = pageSize,
+            totalPages = resultPage.totalPages
+        )
     }
 
     private fun validateReadAccess(shipment: Shipment, currentUserId: UUID, currentUserRole: UserRole) {

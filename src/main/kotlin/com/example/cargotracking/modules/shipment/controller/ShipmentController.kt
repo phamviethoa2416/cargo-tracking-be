@@ -3,13 +3,12 @@ package com.example.cargotracking.modules.shipment.controller
 import com.example.cargotracking.modules.shipment.model.dto.request.*
 import com.example.cargotracking.modules.shipment.model.dto.response.ShipmentListResponse
 import com.example.cargotracking.modules.shipment.model.dto.response.ShipmentResponse
-import com.example.cargotracking.modules.shipment.model.types.ShipmentStatus
 import com.example.cargotracking.modules.shipment.service.ShipmentService
 import com.example.cargotracking.modules.user.principal.UserPrincipal
 import jakarta.validation.Valid
-import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
-import org.springframework.security.core.Authentication
+import org.springframework.security.access.prepost.PreAuthorize
+import org.springframework.security.core.annotation.AuthenticationPrincipal
 import org.springframework.web.bind.annotation.*
 import java.util.*
 
@@ -18,28 +17,12 @@ import java.util.*
 class ShipmentController(
     private val shipmentService: ShipmentService
 ) {
-    @PostMapping
-    fun createShipment(
-        @Valid @RequestBody request: CreateShipmentRequest,
-        authentication: Authentication
-    ): ResponseEntity<ShipmentResponse> {
-        val principal = authentication.principal as UserPrincipal
-
-        val shipment = shipmentService.createShipment(
-            request = request,
-            customerId = principal.userId
-        )
-
-        return ResponseEntity.status(HttpStatus.CREATED).body(shipment)
-    }
-
     @GetMapping("/{id}")
+    @PreAuthorize("hasAnyRole('CUSTOMER', 'PROVIDER', 'SHIPPER')")
     fun getShipmentById(
         @PathVariable id: UUID,
-        authentication: Authentication
+        @AuthenticationPrincipal principal: UserPrincipal
     ): ResponseEntity<ShipmentResponse> {
-        val principal = authentication.principal as UserPrincipal
-
         val shipment = shipmentService.getShipmentById(
             id = id,
             currentUserId = principal.userId,
@@ -50,43 +33,29 @@ class ShipmentController(
     }
 
     @GetMapping
+    @PreAuthorize("hasAnyRole('CUSTOMER', 'PROVIDER', 'SHIPPER')")
     fun getAllShipments(
-        authentication: Authentication
-    ): ResponseEntity<List<ShipmentResponse>> {
-        val principal = authentication.principal as UserPrincipal
-
-        val shipments = shipmentService.getAllShipments(
+        @RequestParam(defaultValue = "1") page: Int,
+        @RequestParam(defaultValue = "20") pageSize: Int,
+        @AuthenticationPrincipal principal: UserPrincipal
+    ): ResponseEntity<ShipmentListResponse> {
+        val response = shipmentService.getAllShipments(
             currentUserId = principal.userId,
-            currentUserRole = principal.role
+            currentUserRole = principal.role,
+            page = page,
+            pageSize = pageSize
         )
 
-        return ResponseEntity.ok(shipments.map(ShipmentResponse::from))
-    }
-
-    @GetMapping("/status/{status}")
-    fun getShipmentsByStatus(
-        @PathVariable status: ShipmentStatus,
-        authentication: Authentication
-    ): ResponseEntity<List<ShipmentResponse>> {
-        val principal = authentication.principal as UserPrincipal
-
-        val shipments = shipmentService.getShipmentsByStatus(
-            status = status,
-            currentUserId = principal.userId,
-            currentUserRole = principal.role
-        )
-
-        return ResponseEntity.ok(shipments.map(ShipmentResponse::from))
+        return ResponseEntity.ok(response)
     }
 
     @PutMapping("/{id}")
+    @PreAuthorize("hasAnyRole('CUSTOMER', 'PROVIDER')")
     fun updateShipment(
         @PathVariable id: UUID,
         @Valid @RequestBody request: UpdateShipmentRequest,
-        authentication: Authentication
+        @AuthenticationPrincipal principal: UserPrincipal
     ): ResponseEntity<ShipmentResponse> {
-        val principal = authentication.principal as UserPrincipal
-
         val shipment = shipmentService.updateShipment(
             id = id,
             request = request,
@@ -97,14 +66,13 @@ class ShipmentController(
         return ResponseEntity.ok(shipment)
     }
 
-    @PostMapping("/{id}/assign-shipper")
+    @PatchMapping("/{id}/assign-shipper")
+    @PreAuthorize("hasRole('PROVIDER')")
     fun assignShipper(
         @PathVariable id: UUID,
         @Valid @RequestBody request: AssignShipperRequest,
-        authentication: Authentication
+        @AuthenticationPrincipal principal: UserPrincipal
     ): ResponseEntity<ShipmentResponse> {
-        val principal = authentication.principal as UserPrincipal
-
         val shipment = shipmentService.assignShipper(
             shipmentId = id,
             request = request,
@@ -114,14 +82,13 @@ class ShipmentController(
         return ResponseEntity.ok(shipment)
     }
 
-    @PostMapping("/{id}/assign-device")
+    @PatchMapping("/{id}/assign-device")
+    @PreAuthorize("hasRole('PROVIDER')")
     fun assignDevice(
         @PathVariable id: UUID,
         @Valid @RequestBody request: AssignDeviceRequest,
-        authentication: Authentication
+        @AuthenticationPrincipal principal: UserPrincipal
     ): ResponseEntity<ShipmentResponse> {
-        val principal = authentication.principal as UserPrincipal
-
         val shipment = shipmentService.assignDevice(
             shipmentId = id,
             request = request,
@@ -131,13 +98,12 @@ class ShipmentController(
         return ResponseEntity.ok(shipment)
     }
 
-    @PostMapping("/{id}/start-transit")
+    @PatchMapping("/{id}/start-transit")
+    @PreAuthorize("hasRole('SHIPPER')")
     fun startTransit(
         @PathVariable id: UUID,
-        authentication: Authentication
+        @AuthenticationPrincipal principal: UserPrincipal
     ): ResponseEntity<ShipmentResponse> {
-        val principal = authentication.principal as UserPrincipal
-
         val shipment = shipmentService.startTransit(
             shipmentId = id,
             shipperId = principal.userId
@@ -146,31 +112,29 @@ class ShipmentController(
         return ResponseEntity.ok(shipment)
     }
 
-    @PostMapping("/{id}/complete")
+    @PatchMapping("/{id}/complete")
+    @PreAuthorize("hasRole('SHIPPER')")
     fun completeShipment(
         @PathVariable id: UUID,
         @Valid @RequestBody request: CompleteShipmentRequest,
-        authentication: Authentication
+        @AuthenticationPrincipal principal: UserPrincipal
     ): ResponseEntity<ShipmentResponse> {
-        val principal = authentication.principal as UserPrincipal
-
         val shipment = shipmentService.completeShipment(
             shipmentId = id,
             request = request,
-            customerId = principal.userId
+            shipperId = principal.userId
         )
 
         return ResponseEntity.ok(shipment)
     }
 
-    @PostMapping("/{id}/cancel")
+    @PatchMapping("/{id}/cancel")
+    @PreAuthorize("hasAnyRole('CUSTOMER', 'PROVIDER')")
     fun cancelShipment(
         @PathVariable id: UUID,
         @Valid @RequestBody request: CancelShipmentRequest,
-        authentication: Authentication
+        @AuthenticationPrincipal principal: UserPrincipal
     ): ResponseEntity<ShipmentResponse> {
-        val principal = authentication.principal as UserPrincipal
-
         val shipment = shipmentService.cancelShipment(
             shipmentId = id,
             request = request,
@@ -182,12 +146,11 @@ class ShipmentController(
     }
 
     @PostMapping("/filter")
+    @PreAuthorize("hasAnyRole('CUSTOMER', 'PROVIDER', 'SHIPPER')")
     fun filterShipments(
         @Valid @RequestBody request: ShipmentFilterRequest,
-        authentication: Authentication
+        @AuthenticationPrincipal principal: UserPrincipal
     ): ResponseEntity<ShipmentListResponse> {
-        val principal = authentication.principal as UserPrincipal
-
         val response = shipmentService.filterShipments(
             request = request,
             currentUserId = principal.userId,
