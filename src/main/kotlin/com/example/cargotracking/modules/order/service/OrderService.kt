@@ -1,5 +1,6 @@
 package com.example.cargotracking.modules.order.service
 
+import com.example.cargotracking.modules.order.exception.OrderException
 import com.example.cargotracking.modules.order.model.dto.request.order.*
 import com.example.cargotracking.modules.order.model.dto.request.provider.*
 import com.example.cargotracking.modules.order.model.dto.response.OrderListResponse
@@ -31,25 +32,25 @@ class OrderService(
         customerId: UUID
     ): OrderResponse {
         val customer = userRepository.findById(customerId)
-            .orElseThrow { NoSuchElementException("Customer not found with id: $customerId") }
+            .orElseThrow { OrderException.UserNotFoundException("Customer not found with id: $customerId") }
 
         if (customer.role != UserRole.CUSTOMER) {
-            throw IllegalStateException("Only CUSTOMER can create orders")
+            throw OrderException.InvalidUserRoleException("Only CUSTOMER can create orders")
         }
 
         if (!customer.isActive) {
-            throw IllegalStateException("Customer account is not active")
+            throw OrderException.UserAccountInactiveException("Customer account is not active")
         }
 
         val provider = userRepository.findById(request.providerId)
-            .orElseThrow { NoSuchElementException("Provider not found with id: ${request.providerId}") }
+            .orElseThrow { OrderException.UserNotFoundException("Provider not found with id: ${request.providerId}") }
 
         if (provider.role != UserRole.PROVIDER) {
-            throw IllegalStateException("Provider ID must belong to a PROVIDER user")
+            throw OrderException.InvalidUserRoleException("Provider ID must belong to a PROVIDER user")
         }
 
         if (!provider.isActive) {
-            throw IllegalStateException("Provider account is not active")
+            throw OrderException.UserAccountInactiveException("Provider account is not active")
         }
 
         val order = Order.create(
@@ -80,7 +81,7 @@ class OrderService(
         currentUserRole: UserRole
     ): OrderResponse {
         val order = orderRepository.findById(id)
-            .orElseThrow { NoSuchElementException("Order not found with id: $id") }
+            .orElseThrow { OrderException.OrderNotFoundException("Order not found with id: $id") }
 
         validateReadAccess(order, currentUserId, currentUserRole)
         return OrderResponse.from(order)
@@ -89,14 +90,39 @@ class OrderService(
     @Transactional(readOnly = true)
     fun getAllOrders(
         currentUserId: UUID,
-        currentUserRole: UserRole
-    ): List<OrderResponse> {
-        val orders = when (currentUserRole) {
-            UserRole.CUSTOMER -> orderRepository.findByCustomerId(currentUserId)
-            UserRole.PROVIDER -> orderRepository.findByProviderId(currentUserId)
-            UserRole.SHIPPER, UserRole.ADMIN -> emptyList()
+        currentUserRole: UserRole,
+        page: Int = 1,
+        pageSize: Int = 20
+    ): OrderListResponse {
+        val customerIdFilter = when (currentUserRole) {
+            UserRole.CUSTOMER -> currentUserId
+            else -> null
         }
-        return orders.map(OrderResponse::from)
+        val providerIdFilter = when (currentUserRole) {
+            UserRole.PROVIDER -> currentUserId
+            else -> null
+        }
+
+        val spec = OrderSpecification.buildSpecification(
+            customerId = customerIdFilter,
+            providerId = providerIdFilter
+        )
+
+        val pageable = PageRequest.of(
+            page - 1,
+            pageSize,
+            Sort.by(Sort.Direction.DESC, "createdAt")
+        )
+
+        val ordersPage = orderRepository.findAll(spec, pageable)
+
+        return OrderListResponse(
+            orders = ordersPage.content.map(OrderResponse::from),
+            total = ordersPage.totalElements,
+            page = page,
+            pageSize = pageSize,
+            totalPages = ordersPage.totalPages
+        )
     }
 
     @Transactional(readOnly = true)
@@ -137,21 +163,21 @@ class OrderService(
         providerId: UUID
     ): OrderResponse {
         val order = orderRepository.findById(orderId)
-            .orElseThrow { NoSuchElementException("Order not found with id: $orderId") }
+            .orElseThrow { OrderException.OrderNotFoundException("Order not found with id: $orderId") }
 
         if (!order.canBeAcceptedBy(providerId)) {
-            throw IllegalStateException("Order cannot be accepted. Order status: ${order.status}, Provider ID mismatch: ${order.providerId} != $providerId")
+            throw OrderException.OrderInvalidStateException("Order cannot be accepted. Order status: ${order.status}, Provider ID mismatch: ${order.providerId} != $providerId")
         }
 
         val provider = userRepository.findById(providerId)
-            .orElseThrow { NoSuchElementException("Provider not found with id: $providerId") }
+            .orElseThrow { OrderException.UserNotFoundException("Provider not found with id: $providerId") }
 
         if (provider.role != UserRole.PROVIDER) {
-            throw IllegalStateException("Only PROVIDER can accept orders")
+            throw OrderException.InvalidUserRoleException("Only PROVIDER can accept orders")
         }
 
         if (!provider.isActive) {
-            throw IllegalStateException("Provider account is not active")
+            throw OrderException.UserAccountInactiveException("Provider account is not active")
         }
 
         val shipment = Shipment.create(
@@ -177,21 +203,21 @@ class OrderService(
         providerId: UUID
     ): OrderResponse {
         val order = orderRepository.findById(orderId)
-            .orElseThrow { NoSuchElementException("Order not found with id: $orderId") }
+            .orElseThrow { OrderException.OrderNotFoundException("Order not found with id: $orderId") }
 
         if (!order.canBeRejectedBy(providerId)) {
-            throw IllegalStateException("Order cannot be rejected. Order status: ${order.status}, Provider ID mismatch: ${order.providerId} != $providerId")
+            throw OrderException.OrderInvalidStateException("Order cannot be rejected. Order status: ${order.status}, Provider ID mismatch: ${order.providerId} != $providerId")
         }
 
         val provider = userRepository.findById(providerId)
-            .orElseThrow { NoSuchElementException("Provider not found with id: $providerId") }
+            .orElseThrow { OrderException.UserNotFoundException("Provider not found with id: $providerId") }
 
         if (provider.role != UserRole.PROVIDER) {
-            throw IllegalStateException("Only PROVIDER can reject orders")
+            throw OrderException.InvalidUserRoleException("Only PROVIDER can reject orders")
         }
 
         if (!provider.isActive) {
-            throw IllegalStateException("Provider account is not active")
+            throw OrderException.UserAccountInactiveException("Provider account is not active")
         }
 
         val trimmedReason = request.reason.trim()
@@ -213,17 +239,17 @@ class OrderService(
         currentUserRole: UserRole
     ): OrderResponse {
         val order = orderRepository.findById(orderId)
-            .orElseThrow { NoSuchElementException("Order not found with id: $orderId") }
+            .orElseThrow { OrderException.OrderNotFoundException("Order not found with id: $orderId") }
 
         if (!order.canBeCancelledBy(currentUserId, currentUserRole)) {
-            throw IllegalStateException("Order cannot be cancelled. Order status: ${order.status}, User: $currentUserId, Role: $currentUserRole")
+            throw OrderException.OrderInvalidStateException("Order cannot be cancelled. Order status: ${order.status}, User: $currentUserId, Role: $currentUserRole")
         }
 
         val user = userRepository.findById(currentUserId)
-            .orElseThrow { NoSuchElementException("User not found with id: $currentUserId") }
+            .orElseThrow { OrderException.UserNotFoundException("User not found with id: $currentUserId") }
 
         if (!user.isActive) {
-            throw IllegalStateException("User account is not active")
+            throw OrderException.UserAccountInactiveException("User account is not active")
         }
 
         order.shipmentId?.let { shipmentId ->
@@ -331,16 +357,16 @@ class OrderService(
         when (currentUserRole) {
             UserRole.CUSTOMER -> {
                 if (order.customerId != currentUserId) {
-                    throw IllegalStateException("Order does not belong to this customer")
+                    throw OrderException.OrderAccessDeniedException("Order does not belong to this customer")
                 }
             }
             UserRole.PROVIDER -> {
                 if (order.providerId != currentUserId) {
-                    throw IllegalStateException("Order does not belong to this provider")
+                    throw OrderException.OrderAccessDeniedException("Order does not belong to this provider")
                 }
             }
             UserRole.SHIPPER, UserRole.ADMIN -> {
-                throw IllegalStateException("Shippers and Admins cannot access orders directly")
+                throw OrderException.OrderAccessDeniedException("Shippers and Admins cannot access orders directly")
             }
         }
     }

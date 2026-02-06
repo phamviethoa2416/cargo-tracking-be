@@ -62,3 +62,11 @@ data class OrderResponse(
         }
     }
 }
+
+data class OrderListResponse(
+    val orders: List<OrderResponse>,
+    val total: Long,
+    val page: Int,
+    val pageSize: Int,
+    val totalPages: Int
+)

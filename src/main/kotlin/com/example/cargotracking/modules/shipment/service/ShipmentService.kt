@@ -1,10 +1,12 @@
 package com.example.cargotracking.modules.shipment.service
 
 import com.example.cargotracking.common.messaging.MessagePublisher
+import com.example.cargotracking.modules.device.model.entity.Device
 import com.example.cargotracking.modules.device.model.types.DeviceStatus
 import com.example.cargotracking.modules.device.repository.DeviceRepository
 import com.example.cargotracking.modules.order.repository.OrderRepository
 import com.example.cargotracking.modules.order.service.OrderService
+import com.example.cargotracking.modules.shipment.exception.ShipmentException
 import com.example.cargotracking.modules.shipment.model.dto.request.*
 import com.example.cargotracking.modules.shipment.model.dto.response.ShipmentListResponse
 import com.example.cargotracking.modules.shipment.model.dto.response.ShipmentResponse
@@ -37,7 +39,7 @@ class ShipmentService(
         currentUserRole: UserRole
     ): Shipment {
         val shipment = shipmentRepository.findById(id)
-            .orElseThrow { NoSuchElementException("Shipment not found with id: $id") }
+            .orElseThrow { ShipmentException.ShipmentNotFoundException("Shipment not found with id: $id") }
 
         validateReadAccess(shipment, currentUserId, currentUserRole)
         return shipment
@@ -94,7 +96,7 @@ class ShipmentService(
         currentUserRole: UserRole
     ): ShipmentResponse {
         val shipment = shipmentRepository.findById(id)
-            .orElseThrow { NoSuchElementException("Shipment not found with id: $id") }
+            .orElseThrow { ShipmentException.ShipmentNotFoundException("Shipment not found with id: $id") }
 
         validateWriteAccess(shipment, currentUserId, currentUserRole)
 
@@ -116,28 +118,28 @@ class ShipmentService(
         providerId: UUID
     ): ShipmentResponse {
         val shipment = shipmentRepository.findById(shipmentId)
-            .orElseThrow { NoSuchElementException("Shipment not found with id: $shipmentId") }
+            .orElseThrow { ShipmentException.ShipmentNotFoundException("Shipment not found with id: $shipmentId") }
 
         if (shipment.providerId != providerId) {
-            throw IllegalStateException("Shipment does not belong to this provider")
+            throw ShipmentException.ShipmentAccessDeniedException("Shipment does not belong to this provider")
         }
 
         val provider = userRepository.findById(providerId)
-            .orElseThrow { NoSuchElementException("Provider not found with id: $providerId") }
+            .orElseThrow { ShipmentException.UserNotFoundException("Provider not found with id: $providerId") }
 
         if (provider.role != UserRole.PROVIDER) {
-            throw IllegalStateException("Only PROVIDER can assign shipper")
+            throw ShipmentException.InvalidUserRoleException("Only PROVIDER can assign shipper")
         }
 
         val shipper = userRepository.findById(request.shipperId)
-            .orElseThrow { NoSuchElementException("Shipper not found with id: ${request.shipperId}") }
+            .orElseThrow { ShipmentException.UserNotFoundException("Shipper not found with id: ${request.shipperId}") }
 
         if (shipper.role != UserRole.SHIPPER) {
-            throw IllegalStateException("Shipper ID must belong to a SHIPPER user")
+            throw ShipmentException.InvalidUserRoleException("Shipper ID must belong to a SHIPPER user")
         }
 
         if (!shipper.isActive) {
-            throw IllegalStateException("Shipper account is not active")
+            throw ShipmentException.UserAccountInactiveException("Shipper account is not active")
         }
 
         shipment.assignShipper(request.shipperId)
@@ -152,25 +154,25 @@ class ShipmentService(
         providerId: UUID
     ): ShipmentResponse {
         val shipment = shipmentRepository.findById(shipmentId)
-            .orElseThrow { NoSuchElementException("Shipment not found with id: $shipmentId") }
+            .orElseThrow { ShipmentException.ShipmentNotFoundException("Shipment not found with id: $shipmentId") }
 
         if (shipment.providerId != providerId) {
-            throw IllegalStateException("Shipment does not belong to this provider")
+            throw ShipmentException.ShipmentAccessDeniedException("Shipment does not belong to this provider")
         }
 
         if (shipment.status != ShipmentStatus.CREATED) {
-            throw IllegalStateException("Only CREATED shipments can have device assigned. Current status: ${shipment.status}")
+            throw ShipmentException.ShipmentInvalidStateException("Only CREATED shipments can have device assigned. Current status: ${shipment.status}")
         }
 
         val device = deviceRepository.findById(request.deviceId)
-            .orElseThrow { NoSuchElementException("Device not found with id: ${request.deviceId}") }
+            .orElseThrow { ShipmentException.DeviceNotFoundException("Device not found with id: ${request.deviceId}") }
 
         if (device.providerId != providerId) {
-            throw IllegalStateException("Device does not belong to this provider")
+            throw ShipmentException.DeviceInvalidStateException("Device does not belong to this provider")
         }
 
         if (device.status != DeviceStatus.AVAILABLE) {
-            throw IllegalStateException("Device must be AVAILABLE to be assigned. Current status: ${device.status}")
+            throw ShipmentException.DeviceInvalidStateException("Device must be AVAILABLE to be assigned. Current status: ${device.status}")
         }
 
         shipment.assignDevice(request.deviceId)
@@ -193,18 +195,18 @@ class ShipmentService(
             .orElseThrow { NoSuchElementException("Shipment not found with id: $shipmentId") }
 
         if (shipment.shipperId != shipperId) {
-            throw IllegalStateException("Shipment does not belong to this shipper")
+            throw ShipmentException.ShipmentAccessDeniedException("Shipment does not belong to this shipper")
         }
 
         val shipper = userRepository.findById(shipperId)
-            .orElseThrow { NoSuchElementException("Shipper not found with id: $shipperId") }
+            .orElseThrow { ShipmentException.UserNotFoundException("Shipper not found with id: $shipperId") }
 
         if (shipper.role != UserRole.SHIPPER) {
-            throw IllegalStateException("Only SHIPPER can start transit")
+            throw ShipmentException.InvalidUserRoleException("Only SHIPPER can start transit")
         }
 
         if (!shipper.isActive) {
-            throw IllegalStateException("Shipper account is not active")
+            throw ShipmentException.UserAccountInactiveException("Shipper account is not active")
         }
 
         shipment.startTransit()
@@ -244,7 +246,7 @@ class ShipmentService(
 
         shipment.deviceId?.let { deviceId ->
             val device = deviceRepository.findById(deviceId)
-                .orElseThrow { NoSuchElementException("Device not found with id: $deviceId") }
+                .orElseThrow { ShipmentException.DeviceNotFoundException("Device not found with id: $deviceId") }
             device.releaseFromShipment()
             deviceRepository.save(device)
 
@@ -270,23 +272,23 @@ class ShipmentService(
         when (currentUserRole) {
             UserRole.CUSTOMER -> {
                 if (shipment.customerId != currentUserId) {
-                    throw IllegalStateException("Shipment does not belong to this customer")
+                    throw ShipmentException.ShipmentAccessDeniedException("Shipment does not belong to this customer")
                 }
             }
             UserRole.PROVIDER -> {
                 if (shipment.providerId != currentUserId) {
-                    throw IllegalStateException("Shipment does not belong to this provider")
+                    throw ShipmentException.ShipmentAccessDeniedException("Shipment does not belong to this provider")
                 }
             }
             UserRole.ADMIN, UserRole.SHIPPER -> {
-                throw IllegalStateException("Only CUSTOMER or PROVIDER can cancel shipments")
+                throw ShipmentException.InvalidUserRoleException("Only CUSTOMER or PROVIDER can cancel shipments")
             }
         }
 
 
         shipment.deviceId?.let { deviceId ->
             val device = deviceRepository.findById(deviceId)
-                .orElseThrow { NoSuchElementException("Device not found with id: $deviceId") }
+                .orElseThrow { ShipmentException.DeviceNotFoundException("Device not found with id: $deviceId") }
             device.releaseFromShipment()
             deviceRepository.save(device)
 

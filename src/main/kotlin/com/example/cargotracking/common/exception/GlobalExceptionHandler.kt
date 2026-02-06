@@ -1,5 +1,7 @@
 package com.example.cargotracking.common.exception
 
+import com.example.cargotracking.modules.order.exception.OrderException
+import com.example.cargotracking.modules.shipment.exception.ShipmentException
 import com.example.cargotracking.modules.user.exception.UserException
 import org.slf4j.LoggerFactory
 import org.springframework.http.HttpStatus
@@ -88,6 +90,72 @@ class GlobalExceptionHandler {
         is UserException.TokenRevokedException ->
             buildResponse(HttpStatus.UNAUTHORIZED, "TOKEN_REVOKED", ex.message ?: "Token has been revoked")
                 .also { logger.warn("Token revoked: ${ex.message}") }
+    }
+
+    @ExceptionHandler(OrderException::class)
+    fun handleOrderException(ex: OrderException) = when (ex) {
+        is OrderException.OrderNotFoundException ->
+            buildResponse(HttpStatus.NOT_FOUND, "ORDER_NOT_FOUND", ex.message ?: "Order not found")
+                .also { logger.warn("Order not found: ${ex.message}") }
+        
+        is OrderException.OrderAccessDeniedException ->
+            buildResponse(HttpStatus.FORBIDDEN, "ORDER_ACCESS_DENIED", ex.message ?: "Access denied")
+                .also { logger.warn("Order access denied: ${ex.message}") }
+        
+        is OrderException.OrderInvalidStateException ->
+            buildResponse(HttpStatus.CONFLICT, "ORDER_INVALID_STATE", ex.message ?: "Invalid order state")
+                .also { logger.warn("Order invalid state: ${ex.message}") }
+        
+        is OrderException.OrderAlreadyProcessedException ->
+            buildResponse(HttpStatus.CONFLICT, "ORDER_ALREADY_PROCESSED", ex.message ?: "Order already processed")
+                .also { logger.warn("Order already processed: ${ex.message}") }
+        
+        is OrderException.UserNotFoundException ->
+            buildResponse(HttpStatus.NOT_FOUND, "USER_NOT_FOUND", ex.message ?: "User not found")
+                .also { logger.warn("User not found: ${ex.message}") }
+        
+        is OrderException.InvalidUserRoleException ->
+            buildResponse(HttpStatus.BAD_REQUEST, "INVALID_USER_ROLE", ex.message ?: "Invalid user role")
+                .also { logger.warn("Invalid user role: ${ex.message}") }
+        
+        is OrderException.UserAccountInactiveException ->
+            buildResponse(HttpStatus.FORBIDDEN, "USER_ACCOUNT_INACTIVE", ex.message ?: "User account is inactive")
+                .also { logger.warn("User account inactive: ${ex.message}") }
+    }
+
+    @ExceptionHandler(ShipmentException::class)
+    fun handleShipmentException(ex: ShipmentException) = when (ex) {
+        is ShipmentException.ShipmentNotFoundException ->
+            buildResponse(HttpStatus.NOT_FOUND, "SHIPMENT_NOT_FOUND", ex.message ?: "Shipment not found")
+                .also { logger.warn("Shipment not found: ${ex.message}") }
+        
+        is ShipmentException.ShipmentAccessDeniedException ->
+            buildResponse(HttpStatus.FORBIDDEN, "SHIPMENT_ACCESS_DENIED", ex.message ?: "Access denied")
+                .also { logger.warn("Shipment access denied: ${ex.message}") }
+        
+        is ShipmentException.ShipmentInvalidStateException ->
+            buildResponse(HttpStatus.CONFLICT, "SHIPMENT_INVALID_STATE", ex.message ?: "Invalid shipment state")
+                .also { logger.warn("Shipment invalid state: ${ex.message}") }
+        
+        is ShipmentException.UserNotFoundException ->
+            buildResponse(HttpStatus.NOT_FOUND, "USER_NOT_FOUND", ex.message ?: "User not found")
+                .also { logger.warn("User not found: ${ex.message}") }
+        
+        is ShipmentException.InvalidUserRoleException ->
+            buildResponse(HttpStatus.BAD_REQUEST, "INVALID_USER_ROLE", ex.message ?: "Invalid user role")
+                .also { logger.warn("Invalid user role: ${ex.message}") }
+        
+        is ShipmentException.UserAccountInactiveException ->
+            buildResponse(HttpStatus.FORBIDDEN, "USER_ACCOUNT_INACTIVE", ex.message ?: "User account is inactive")
+                .also { logger.warn("User account inactive: ${ex.message}") }
+        
+        is ShipmentException.DeviceNotFoundException ->
+            buildResponse(HttpStatus.NOT_FOUND, "DEVICE_NOT_FOUND", ex.message ?: "Device not found")
+                .also { logger.warn("Device not found: ${ex.message}") }
+        
+        is ShipmentException.DeviceInvalidStateException ->
+            buildResponse(HttpStatus.CONFLICT, "DEVICE_INVALID_STATE", ex.message ?: "Invalid device state")
+                .also { logger.warn("Device invalid state: ${ex.message}") }
     }
 
     @ExceptionHandler(Exception::class)
