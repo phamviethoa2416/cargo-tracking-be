@@ -10,22 +10,29 @@ import com.example.cargotracking.modules.user.principal.UserPrincipal
 import jakarta.validation.Valid
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
-import org.springframework.security.core.Authentication
-import org.springframework.web.bind.annotation.*
-import java.util.*
+import org.springframework.security.access.prepost.PreAuthorize
+import org.springframework.security.core.annotation.AuthenticationPrincipal
+import org.springframework.web.bind.annotation.GetMapping
+import org.springframework.web.bind.annotation.PatchMapping
+import org.springframework.web.bind.annotation.PathVariable
+import org.springframework.web.bind.annotation.PostMapping
+import org.springframework.web.bind.annotation.RequestBody
+import org.springframework.web.bind.annotation.RequestMapping
+import org.springframework.web.bind.annotation.RestController
+import java.util.UUID
 
 @RestController
 @RequestMapping("/api/orders")
 class OrderController(
     private val orderService: OrderService
 ) {
-    @PostMapping
-    fun createOrder(
-        @Valid @RequestBody request: CreateOrderRequest,
-        authentication: Authentication
-    ): ResponseEntity<OrderResponse> {
-        val principal = authentication.principal as UserPrincipal
 
+    @PostMapping
+    @PreAuthorize("hasRole('CUSTOMER')")
+    fun createOrder(
+        @AuthenticationPrincipal principal: UserPrincipal,
+        @Valid @RequestBody request: CreateOrderRequest
+    ): ResponseEntity<OrderResponse> {
         val order = orderService.createOrder(
             request = request,
             customerId = principal.userId
@@ -35,12 +42,11 @@ class OrderController(
     }
 
     @GetMapping("/{id}")
+    @PreAuthorize("hasAnyRole('CUSTOMER', 'PROVIDER')")
     fun getOrderById(
-        @PathVariable id: UUID,
-        authentication: Authentication
+        @AuthenticationPrincipal principal: UserPrincipal,
+        @PathVariable id: UUID
     ): ResponseEntity<OrderResponse> {
-        val principal = authentication.principal as UserPrincipal
-
         val order = orderService.getOrderById(
             id = id,
             currentUserId = principal.userId,
@@ -51,11 +57,10 @@ class OrderController(
     }
 
     @GetMapping
+    @PreAuthorize("hasAnyRole('CUSTOMER', 'PROVIDER')")
     fun getAllOrders(
-        authentication: Authentication
+        @AuthenticationPrincipal principal: UserPrincipal
     ): ResponseEntity<List<OrderResponse>> {
-        val principal = authentication.principal as UserPrincipal
-
         val orders = orderService.getAllOrders(
             currentUserId = principal.userId,
             currentUserRole = principal.role
@@ -65,12 +70,11 @@ class OrderController(
     }
 
     @GetMapping("/status/{status}")
+    @PreAuthorize("hasAnyRole('CUSTOMER', 'PROVIDER')")
     fun getOrdersByStatus(
-        @PathVariable status: OrderStatus,
-        authentication: Authentication
+        @AuthenticationPrincipal principal: UserPrincipal,
+        @PathVariable status: OrderStatus
     ): ResponseEntity<List<OrderResponse>> {
-        val principal = authentication.principal as UserPrincipal
-
         val orders = orderService.getOrdersByStatus(
             status = status,
             currentUserId = principal.userId,
@@ -81,11 +85,10 @@ class OrderController(
     }
 
     @GetMapping("/pending")
+    @PreAuthorize("hasRole('PROVIDER')")
     fun getPendingOrders(
-        authentication: Authentication
+        @AuthenticationPrincipal principal: UserPrincipal
     ): ResponseEntity<List<OrderResponse>> {
-        val principal = authentication.principal as UserPrincipal
-
         val orders = orderService.getPendingOrders(
             providerId = principal.userId
         )
@@ -93,14 +96,13 @@ class OrderController(
         return ResponseEntity.ok(orders)
     }
 
-    @PostMapping("/{id}/accept")
+    @PatchMapping("/{id}/accept")
+    @PreAuthorize("hasRole('PROVIDER')")
     fun acceptOrder(
+        @AuthenticationPrincipal principal: UserPrincipal,
         @PathVariable id: UUID,
-        @RequestBody request: AcceptOrderRequest?,
-        authentication: Authentication
+        @RequestBody request: AcceptOrderRequest?
     ): ResponseEntity<OrderResponse> {
-        val principal = authentication.principal as UserPrincipal
-
         val order = orderService.acceptOrder(
             orderId = id,
             request = request ?: AcceptOrderRequest(),
@@ -110,14 +112,13 @@ class OrderController(
         return ResponseEntity.ok(order)
     }
 
-    @PostMapping("/{id}/reject")
+    @PatchMapping("/{id}/reject")
+    @PreAuthorize("hasRole('PROVIDER')")
     fun rejectOrder(
+        @AuthenticationPrincipal principal: UserPrincipal,
         @PathVariable id: UUID,
-        @Valid @RequestBody request: RejectOrderRequest,
-        authentication: Authentication
+        @Valid @RequestBody request: RejectOrderRequest
     ): ResponseEntity<OrderResponse> {
-        val principal = authentication.principal as UserPrincipal
-
         val order = orderService.rejectOrder(
             orderId = id,
             request = request,
@@ -127,14 +128,13 @@ class OrderController(
         return ResponseEntity.ok(order)
     }
 
-    @PostMapping("/{id}/cancel")
+    @PatchMapping("/{id}/cancel")
+    @PreAuthorize("hasAnyRole('CUSTOMER', 'PROVIDER')")
     fun cancelOrder(
+        @AuthenticationPrincipal principal: UserPrincipal,
         @PathVariable id: UUID,
-        @Valid @RequestBody request: CancelOrderRequest,
-        authentication: Authentication
+        @Valid @RequestBody request: CancelOrderRequest
     ): ResponseEntity<OrderResponse> {
-        val principal = authentication.principal as UserPrincipal
-
         val order = orderService.cancelOrder(
             orderId = id,
             request = request,
@@ -146,12 +146,11 @@ class OrderController(
     }
 
     @PostMapping("/filter")
+    @PreAuthorize("hasAnyRole('CUSTOMER', 'PROVIDER')")
     fun filterOrders(
-        @Valid @RequestBody request: OrderFilterRequest,
-        authentication: Authentication
+        @AuthenticationPrincipal principal: UserPrincipal,
+        @Valid @RequestBody request: OrderFilterRequest
     ): ResponseEntity<OrderListResponse> {
-        val principal = authentication.principal as UserPrincipal
-
         val response = orderService.filterOrders(
             request = request,
             currentUserId = principal.userId,
