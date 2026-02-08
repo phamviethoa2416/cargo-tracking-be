@@ -6,6 +6,7 @@ import jakarta.persistence.Id
 import jakarta.persistence.MappedSuperclass
 import jakarta.persistence.PrePersist
 import jakarta.persistence.PreUpdate
+import jakarta.persistence.Version
 import org.springframework.data.annotation.CreatedDate
 import org.springframework.data.annotation.LastModifiedDate
 import org.springframework.data.jpa.domain.support.AuditingEntityListener
@@ -19,6 +20,11 @@ abstract class BaseEntity(
     @Column(updatable = false, nullable = false)
     val id: UUID,
 ) {
+    @Version
+    @Column(name = "version", nullable = false)
+    var version: Long = 0L
+        protected set
+
     @CreatedDate
     @Column(name = "created_at", updatable = false, nullable = false)
     lateinit var createdAt: Instant

@@ -55,7 +55,31 @@ class Shipment private constructor(
     var estimatedDeliveryAt: Instant? = null,
 
     @Column(name = "actual_delivery_at")
-    var actualDeliveryAt: Instant? = null
+    var actualDeliveryAt: Instant? = null,
+
+    @Column(name = "require_temperature_tracking", nullable = false)
+    var requireTemperatureTracking: Boolean = false,
+
+    @Column(name = "min_temperature")
+    var minTemperature: Double? = null,
+
+    @Column(name = "max_temperature")
+    var maxTemperature: Double? = null,
+
+    @Column(name = "require_humidity_tracking", nullable = false)
+    var requireHumidityTracking: Boolean = false,
+
+    @Column(name = "min_humidity")
+    var minHumidity: Double? = null,
+
+    @Column(name = "max_humidity")
+    var maxHumidity: Double? = null,
+
+    @Column(name = "require_location_tracking", nullable = false)
+    var requireLocationTracking: Boolean = true,
+
+    @Column(name = "special_requirements", length = 1000)
+    var specialRequirements: String? = null
 
 ): BaseEntity(id) {
     protected constructor() : this(
@@ -86,6 +110,27 @@ class Shipment private constructor(
 
         check(deliveryAddress.isNotBlank() && deliveryAddress.length <= 500) {
             "Delivery address must be 1-500 characters"
+        }
+
+        if (requireTemperatureTracking) {
+            check(minTemperature != null && maxTemperature != null) {
+                "Temperature tracking requires min and max temperature"
+            }
+            check(minTemperature!! <= maxTemperature!!) {
+                "Min temperature must be <= max temperature"
+            }
+        }
+
+        if (requireHumidityTracking) {
+            check(minHumidity != null && maxHumidity != null) {
+                "Humidity tracking requires min and max humidity"
+            }
+            check(minHumidity!! in 0.0..100.0 && maxHumidity!! in 0.0..100.0) {
+                "Humidity must be between 0 and 100"
+            }
+            check(minHumidity!! <= maxHumidity!!) {
+                "Min humidity must be <= max humidity"
+            }
         }
 
         when (status) {
@@ -126,6 +171,14 @@ class Shipment private constructor(
             pickupAddress: String,
             deliveryAddress: String,
             estimatedDeliveryAt: Instant? = null,
+            requireTemperatureTracking: Boolean = false,
+            minTemperature: Double? = null,
+            maxTemperature: Double? = null,
+            requireHumidityTracking: Boolean = false,
+            minHumidity: Double? = null,
+            maxHumidity: Double? = null,
+            requireLocationTracking: Boolean = true,
+            specialRequirements: String? = null
         ): Shipment {
             require(customerId != UUID(0, 0)) { "Customer ID must be valid" }
             require(providerId != UUID(0, 0)) { "Provider ID must be valid" }
@@ -141,6 +194,14 @@ class Shipment private constructor(
                 pickupAddress = pickupAddress.trim(),
                 deliveryAddress = deliveryAddress.trim(),
                 estimatedDeliveryAt = estimatedDeliveryAt,
+                requireTemperatureTracking = requireTemperatureTracking,
+                minTemperature = minTemperature,
+                maxTemperature = maxTemperature,
+                requireHumidityTracking = requireHumidityTracking,
+                minHumidity = minHumidity,
+                maxHumidity = maxHumidity,
+                requireLocationTracking = requireLocationTracking,
+                specialRequirements = specialRequirements?.trim(),
                 status = ShipmentStatus.CREATED
             )
 

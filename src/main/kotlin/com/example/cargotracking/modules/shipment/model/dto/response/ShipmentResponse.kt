@@ -22,6 +22,14 @@ data class ShipmentResponse(
     val estimatedDeliveryAt: Instant?,
     val actualDeliveryAt: Instant?,
 
+    val requireTemperatureTracking: Boolean,
+    val minTemperature: Double?,
+    val maxTemperature: Double?,
+    val requireHumidityTracking: Boolean,
+    val minHumidity: Double?,
+    val maxHumidity: Double?,
+    val requireLocationTracking: Boolean,
+    val specialRequirements: String?,
 
     val createdAt: Instant?,
     val updatedAt: Instant?
@@ -40,6 +48,14 @@ data class ShipmentResponse(
                 deliveryAddress = shipment.deliveryAddress,
                 estimatedDeliveryAt = shipment.estimatedDeliveryAt,
                 actualDeliveryAt = shipment.actualDeliveryAt,
+                requireTemperatureTracking = shipment.requireTemperatureTracking,
+                minTemperature = shipment.minTemperature,
+                maxTemperature = shipment.maxTemperature,
+                requireHumidityTracking = shipment.requireHumidityTracking,
+                minHumidity = shipment.minHumidity,
+                maxHumidity = shipment.maxHumidity,
+                requireLocationTracking = shipment.requireLocationTracking,
+                specialRequirements = shipment.specialRequirements,
                 createdAt = shipment.createdAt,
                 updatedAt = shipment.updatedAt
             )

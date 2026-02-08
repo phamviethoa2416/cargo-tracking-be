@@ -486,21 +486,21 @@ class ShipmentService(
         when (currentUserRole) {
             UserRole.CUSTOMER -> {
                 if (shipment.customerId != currentUserId) {
-                    throw IllegalStateException("Shipment does not belong to this customer")
+                    throw ShipmentException.ShipmentAccessDeniedException("Shipment does not belong to this customer")
                 }
             }
             UserRole.PROVIDER -> {
                 if (shipment.providerId != currentUserId) {
-                    throw IllegalStateException("Shipment does not belong to this provider")
+                    throw ShipmentException.ShipmentAccessDeniedException("Shipment does not belong to this provider")
                 }
             }
             UserRole.SHIPPER -> {
                 if (shipment.shipperId != currentUserId) {
-                    throw IllegalStateException("Shipment does not belong to this shipper")
+                    throw ShipmentException.ShipmentAccessDeniedException("Shipment does not belong to this shipper")
                 }
             }
             UserRole.ADMIN -> {
-                throw IllegalStateException("Admins cannot access shipments directly")
+                throw ShipmentException.ShipmentAccessDeniedException("Admins cannot access shipments directly")
             }
         }
     }
@@ -509,16 +509,16 @@ class ShipmentService(
         when (currentUserRole) {
             UserRole.CUSTOMER -> {
                 if (shipment.customerId != currentUserId) {
-                    throw IllegalStateException("Shipment does not belong to this customer")
+                    throw ShipmentException.ShipmentAccessDeniedException("Shipment does not belong to this customer")
                 }
             }
             UserRole.PROVIDER -> {
                 if (shipment.providerId != currentUserId) {
-                    throw IllegalStateException("Shipment does not belong to this provider")
+                    throw ShipmentException.ShipmentAccessDeniedException("Shipment does not belong to this provider")
                 }
             }
             UserRole.ADMIN, UserRole.SHIPPER -> {
-                throw IllegalStateException("Only CUSTOMER or PROVIDER can modify shipments")
+                throw ShipmentException.ShipmentAccessDeniedException("Only CUSTOMER or PROVIDER can modify shipments")
             }
         }
     }

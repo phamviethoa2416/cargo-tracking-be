@@ -186,7 +186,15 @@ class OrderService(
             goodsDescription = order.goodsDescription,
             pickupAddress = order.pickupAddress,
             deliveryAddress = order.deliveryAddress,
-            estimatedDeliveryAt = order.estimatedDeliveryAt
+            estimatedDeliveryAt = order.estimatedDeliveryAt,
+            requireTemperatureTracking = order.requireTemperatureTracking,
+            minTemperature = order.minTemperature,
+            maxTemperature = order.maxTemperature,
+            requireHumidityTracking = order.requireHumidityTracking,
+            minHumidity = order.minHumidity,
+            maxHumidity = order.maxHumidity,
+            requireLocationTracking = order.requireLocationTracking,
+            specialRequirements = order.specialRequirements
         )
         val savedShipment = shipmentRepository.save(shipment)
 
