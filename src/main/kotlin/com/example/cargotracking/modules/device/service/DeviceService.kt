@@ -1,29 +1,27 @@
 package com.example.cargotracking.modules.device.service
 
 import com.example.cargotracking.common.messaging.MessagePublisher
-import com.example.cargotracking.modules.device.model.dto.request.CreateDeviceRequest
-import com.example.cargotracking.modules.device.model.dto.request.DeviceFilterRequest
-import com.example.cargotracking.modules.device.model.dto.request.UpdateDeviceRequest
-import com.example.cargotracking.modules.device.model.dto.request.UpdateStatusRequest
-import com.example.cargotracking.modules.device.model.dto.response.DeviceListResponse
-import com.example.cargotracking.modules.device.model.dto.response.DeviceResponse
+import com.example.cargotracking.modules.device.model.dto.request.*
+import com.example.cargotracking.modules.device.model.dto.response.*
 import com.example.cargotracking.modules.device.model.entity.Device
 import com.example.cargotracking.modules.device.model.types.DeviceStatus
 import com.example.cargotracking.modules.device.repository.DeviceRepository
-import com.example.cargotracking.modules.device.validation.DeviceOwnershipValidator
-import com.example.cargotracking.modules.device.validation.DeviceStatusValidator
+import com.example.cargotracking.modules.device.exception.DeviceException
+import com.example.cargotracking.modules.device.repository.DeviceSpecification
 import com.example.cargotracking.modules.user.model.types.UserRole
+import com.example.cargotracking.modules.user.repository.UserRepository
 import org.springframework.data.domain.PageRequest
+import org.springframework.data.domain.Pageable
 import org.springframework.data.domain.Sort
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.time.Instant
-import java.util.UUID
+import java.util.*
 
 @Service
 class DeviceService(
+    private val userRepository: UserRepository,
     private val deviceRepository: DeviceRepository,
-    private val deviceOwnershipValidator: DeviceOwnershipValidator,
     private val messagePublisher: MessagePublisher
 ) {
     @Transactional
@@ -31,10 +29,10 @@ class DeviceService(
         request: CreateDeviceRequest,
         providerId: UUID
     ): DeviceResponse {
-        deviceOwnershipValidator.validateProviderRole(providerId)
+        validateProviderRole(providerId)
 
         if (deviceRepository.existsByHardwareUID(request.hardwareUID)) {
-            throw IllegalStateException("Device with hardware UID '${request.hardwareUID}' already exists")
+            throw DeviceException.DeviceAlreadyExistsException("Device with hardware UID '${request.hardwareUID}' already exists")
         }
 
         val device = Device.create(
@@ -50,30 +48,31 @@ class DeviceService(
     }
 
     @Transactional(readOnly = true)
-    fun getDeviceById(id: UUID, currentUserId: UUID, currentUserRole: UserRole): Device {
+    fun getDeviceById(id: UUID, currentUserId: UUID, currentUserRole: UserRole): DeviceResponse {
         val device = deviceRepository.findById(id)
-            .orElseThrow { NoSuchElementException("Device not found with id: $id") }
+            .orElseThrow { DeviceException.DeviceNotFoundException("Device not found with id: $id") }
         
-        deviceOwnershipValidator.validateRead(device, currentUserId, currentUserRole)
-        return device
+        validateRead(device, currentUserId, currentUserRole)
+        return DeviceResponse.from(device)
     }
 
     @Transactional(readOnly = true)
-    fun getDeviceByHardwareUID(hardwareUID: String, currentUserId: UUID, currentUserRole: UserRole): Device {
+    fun getDeviceByHardwareUID(hardwareUID: String, currentUserId: UUID, currentUserRole: UserRole): DeviceResponse {
         val device = deviceRepository.findByHardwareUID(hardwareUID)
-            ?: throw NoSuchElementException("Device not found with hardware UID: $hardwareUID")
+            ?: throw DeviceException.DeviceNotFoundException("Device not found with hardware UID: $hardwareUID")
         
-        deviceOwnershipValidator.validateRead(device, currentUserId, currentUserRole)
-        return device
+        validateRead(device, currentUserId, currentUserRole)
+        return DeviceResponse.from(device)
     }
 
     @Transactional(readOnly = true)
-    fun getAllDevices(currentUserId: UUID, currentUserRole: UserRole): List<Device> {
-        return when (currentUserRole) {
-            UserRole.ADMIN -> deviceRepository.findAll()
-            UserRole.PROVIDER -> deviceRepository.findByProviderId(currentUserId)
-            else -> throw IllegalStateException("Only ADMIN or PROVIDER can list all devices")
+    fun getAllDevices(currentUserId: UUID, currentUserRole: UserRole): List<DeviceResponse> {
+        val spec = when (currentUserRole) {
+            UserRole.ADMIN -> DeviceSpecification.buildSpecification()
+            UserRole.PROVIDER -> DeviceSpecification.buildSpecification(providerId = currentUserId)
+            else -> throw DeviceException.InvalidUserRoleException("Only ADMIN or PROVIDER can list all devices")
         }
+        return deviceRepository.findAll(spec, Pageable.unpaged()).content.map(DeviceResponse::from)
     }
 
     @Transactional(readOnly = true)
@@ -81,15 +80,21 @@ class DeviceService(
         thresholdMillis: Long,
         currentUserId: UUID,
         currentUserRole: UserRole
-    ): List<Device> {
+    ): List<DeviceResponse> {
         val providerIdFilter = when (currentUserRole) {
             UserRole.ADMIN -> null
             UserRole.PROVIDER -> currentUserId
-            else -> throw IllegalStateException("Only ADMIN or PROVIDER can get offline devices")
+            else -> throw DeviceException.InvalidUserRoleException("Only ADMIN or PROVIDER can get offline devices")
         }
 
         val threshold = Instant.now().minusMillis(thresholdMillis)
-        return deviceRepository.findOfflineDevices(threshold, providerIdFilter)
+
+        val spec = DeviceSpecification.buildSpecification(
+            providerId = providerIdFilter,
+            lastSeenBefore = threshold
+        )
+
+        return deviceRepository.findAll(spec).map(DeviceResponse::from)
     }
 
     @Transactional(readOnly = true)
@@ -97,15 +102,21 @@ class DeviceService(
         thresholdMillis: Long,
         currentUserId: UUID,
         currentUserRole: UserRole
-    ): List<Device> {
+    ): List<DeviceResponse> {
         val providerIdFilter = when (currentUserRole) {
             UserRole.ADMIN -> null
             UserRole.PROVIDER -> currentUserId
-            else -> throw IllegalStateException("Only ADMIN or PROVIDER can get online devices")
+            else -> throw DeviceException.InvalidUserRoleException("Only ADMIN or PROVIDER can get online devices")
         }
 
         val threshold = Instant.now().minusMillis(thresholdMillis)
-        return deviceRepository.findOnlineDevices(threshold, providerIdFilter)
+
+        val spec = DeviceSpecification.buildSpecification(
+            providerId = providerIdFilter,
+            lastSeenAfter = threshold
+        )
+
+        return deviceRepository.findAll(spec).map(DeviceResponse::from)
     }
 
     @Transactional(readOnly = true)
@@ -113,14 +124,19 @@ class DeviceService(
         status: DeviceStatus,
         currentUserId: UUID,
         currentUserRole: UserRole
-    ): List<Device> {
+    ): List<DeviceResponse> {
         val providerIdFilter = when (currentUserRole) {
             UserRole.ADMIN -> null
             UserRole.PROVIDER -> currentUserId
-            else -> throw IllegalStateException("Only ADMIN or PROVIDER can get devices by status")
+            else -> throw DeviceException.InvalidUserRoleException("Only ADMIN or PROVIDER can get devices by status")
         }
 
-        return deviceRepository.findByStatusAndProviderId(status, providerIdFilter)
+        val spec = DeviceSpecification.buildSpecification(
+            status = status,
+            providerId = providerIdFilter
+        )
+
+        return deviceRepository.findAll(spec).map(DeviceResponse::from)
     }
 
     @Transactional(readOnly = true)
@@ -128,14 +144,19 @@ class DeviceService(
         shipmentId: UUID,
         currentUserId: UUID,
         currentUserRole: UserRole
-    ): List<Device> {
+    ): List<DeviceResponse> {
         val providerIdFilter = when (currentUserRole) {
             UserRole.ADMIN -> null
             UserRole.PROVIDER -> currentUserId
-            else -> throw IllegalStateException("Only ADMIN or PROVIDER can get devices by shipment ID")
+            else -> throw DeviceException.InvalidUserRoleException("Only ADMIN or PROVIDER can get devices by shipment ID")
         }
 
-        return deviceRepository.findByCurrentShipmentId(shipmentId, providerIdFilter)
+        val spec = DeviceSpecification.buildSpecification(
+            currentShipmentId = shipmentId,
+            providerId = providerIdFilter
+        )
+
+        return deviceRepository.findAll(spec).map(DeviceResponse::from)
     }
 
     @Transactional
@@ -145,9 +166,9 @@ class DeviceService(
         providerId: UUID
     ): DeviceResponse {
         val device = deviceRepository.findById(id)
-            .orElseThrow { NoSuchElementException("Device not found with id: $id") }
+            .orElseThrow { DeviceException.DeviceNotFoundException("Device not found with id: $id") }
 
-        deviceOwnershipValidator.validateWrite(device, providerId)
+        validateWrite(device, providerId)
 
         request.deviceName?.let(device::updateDeviceName)
         request.model?.let(device::updateModel)
@@ -162,36 +183,14 @@ class DeviceService(
     }
 
     @Transactional
-    fun updateStatus(
-        deviceId: UUID,
-        request: UpdateStatusRequest,
-        providerId: UUID
-    ): DeviceResponse {
-        val device = deviceRepository.findById(deviceId)
-            .orElseThrow { NoSuchElementException("Device not found with id: $deviceId") }
-
-        deviceOwnershipValidator.validateWrite(device, providerId)
-
-        DeviceStatusValidator.validateTransition(device.status, request.status)
-
-        device.updateStatus(request.status, request.shipmentId)
-
-        val savedDevice = deviceRepository.save(device)
-
-        messagePublisher.publishDeviceConfigUpdate(savedDevice)
-        
-        return DeviceResponse.from(savedDevice)
-    }
-
-    @Transactional
     fun deleteDevice(id: UUID, providerId: UUID) {
         val device = deviceRepository.findById(id)
-            .orElseThrow { NoSuchElementException("Device not found with id: $id") }
+            .orElseThrow { DeviceException.DeviceNotFoundException("Device not found with id: $id") }
 
-        deviceOwnershipValidator.validateWrite(device, providerId)
+        validateWrite(device, providerId)
 
-        if (device.status == DeviceStatus.IN_TRANSIT) {
-            throw IllegalStateException(
+        if (device.status == DeviceStatus.IN_USE) {
+            throw DeviceException.DeviceInvalidStateException(
                 "Cannot delete device that is currently in transit. Release from shipment first."
             )
         }
@@ -202,9 +201,9 @@ class DeviceService(
     @Transactional
     fun assignToShipment(deviceId: UUID, shipmentId: UUID, providerId: UUID): DeviceResponse {
         val device = deviceRepository.findById(deviceId)
-            .orElseThrow { NoSuchElementException("Device not found with id: $deviceId") }
+            .orElseThrow { DeviceException.DeviceNotFoundException("Device not found with id: $deviceId") }
 
-        deviceOwnershipValidator.validateWrite(device, providerId)
+        validateWrite(device, providerId)
 
         device.assignToShipment(shipmentId)
         val savedDevice = deviceRepository.save(device)
@@ -217,9 +216,9 @@ class DeviceService(
     @Transactional
     fun releaseFromShipment(deviceId: UUID, providerId: UUID): DeviceResponse {
         val device = deviceRepository.findById(deviceId)
-            .orElseThrow { NoSuchElementException("Device not found with id: $deviceId") }
+            .orElseThrow { DeviceException.DeviceNotFoundException("Device not found with id: $deviceId") }
 
-        deviceOwnershipValidator.validateWrite(device, providerId)
+        validateWrite(device, providerId)
 
         val shipmentId = device.currentShipmentId
         device.releaseFromShipment()
@@ -239,10 +238,23 @@ class DeviceService(
         currentUserRole: UserRole
     ): DeviceListResponse {
         val providerIdFilter = when (currentUserRole) {
-            UserRole.ADMIN -> request.providerId
             UserRole.PROVIDER -> currentUserId
-            else -> throw IllegalStateException("Only ADMIN or PROVIDER can filter devices")
+            else -> null
         }
+
+        val offlineThreshold = Instant.now().minusMillis(300_000L) // 5 minutes
+        val lastSeenBefore = if (request.isOffline == true) offlineThreshold else null
+        val lastSeenAfter = if (request.isOffline == false) offlineThreshold else null
+
+        val specification = DeviceSpecification.buildSpecification(
+            status = request.status,
+            providerId = providerIdFilter,
+            minBattery = request.minBattery,
+            maxBattery = request.maxBattery,
+            lastSeenBefore = lastSeenBefore,
+            lastSeenAfter = lastSeenAfter,
+            search = request.search
+        )
 
         val pageable = PageRequest.of(
             request.page - 1,
@@ -254,14 +266,7 @@ class DeviceService(
             )
         )
 
-        val page = deviceRepository.findWithFilters(
-            status = request.status,
-            providerId = providerIdFilter,
-            minBattery = request.minBattery,
-            maxBattery = request.maxBattery,
-            search = request.search,
-            pageable = pageable
-        )
+        val page = deviceRepository.findAll(specification, pageable)
 
         return DeviceListResponse(
             devices = page.content.map(DeviceResponse::from),
@@ -270,5 +275,44 @@ class DeviceService(
             pageSize = request.pageSize,
             totalPages = page.totalPages
         )
+    }
+
+    private fun validateProviderRole(providerId: UUID) {
+        val user = userRepository.findById(providerId)
+            .orElseThrow { DeviceException.UserNotFoundException("User not found with id: $providerId") }
+
+        if (user.role != UserRole.PROVIDER) {
+            throw DeviceException.InvalidUserRoleException("Only PROVIDER role can perform this operation. Current role: ${user.role}")
+        }
+
+        if (!user.isActive) {
+            throw DeviceException.UserAccountInactiveException("Provider account is not active")
+        }
+    }
+
+    private fun validateWrite(device: Device, currentUserId: UUID) {
+        validateProviderRole(currentUserId)
+
+        if (device.providerId != currentUserId) {
+            throw DeviceException.DeviceAccessDeniedException(
+                "Device does not belong to this provider. Device provider: ${device.providerId}, Current user: $currentUserId"
+            )
+        }
+    }
+
+    private fun validateRead(device: Device, currentUserId: UUID, currentUserRole: UserRole) {
+        if (currentUserRole == UserRole.ADMIN) {
+            return
+        }
+
+        if (currentUserRole == UserRole.PROVIDER) {
+            if (device.providerId != currentUserId) {
+                throw DeviceException.DeviceAccessDeniedException(
+                    "Device does not belong to this provider. Device provider: ${device.providerId}, Current user: $currentUserId"
+                )
+            }
+        } else {
+            throw DeviceException.InvalidUserRoleException("Only ADMIN or PROVIDER can read device information")
+        }
     }
 }

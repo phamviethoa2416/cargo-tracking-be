@@ -76,9 +76,9 @@ class Device private constructor(
             }
         }
 
-        if (status == DeviceStatus.IN_TRANSIT) {
+        if (status == DeviceStatus.IN_USE) {
             check(currentShipmentId != null) {
-                "IN_TRANSIT device must have shipment ID"
+                "IN_USE device must have shipment ID"
             }
         }
     }
@@ -104,8 +104,6 @@ class Device private constructor(
                 status = DeviceStatus.AVAILABLE,
                 totalTrips = 0
             )
-
-            device.validateInvariants()
             return device
         }
     }
@@ -119,12 +117,12 @@ class Device private constructor(
         }
 
         currentShipmentId = shipmentId
-        status = DeviceStatus.IN_TRANSIT
+        status = DeviceStatus.IN_USE
     }
 
     fun releaseFromShipment() {
-        require(status == DeviceStatus.IN_TRANSIT) {
-            "Only IN_TRANSIT device can be released. Current status: $status"
+        require(status == DeviceStatus.IN_USE) {
+            "Only IN_USE device can be released. Current status: $status"
         }
         currentShipmentId = null
         status = DeviceStatus.AVAILABLE
@@ -184,45 +182,6 @@ class Device private constructor(
         return lastSeenAt?.let {
             Instant.now().minusSeconds(thresholdSeconds).isBefore(it)
         } == true
-    }
-
-    fun updateStatus(newStatus: DeviceStatus, shipmentId: UUID? = null) {
-        when (newStatus) {
-            DeviceStatus.IN_TRANSIT -> {
-                require(shipmentId != null) {
-                    "Shipment ID is required when setting status to IN_TRANSIT"
-                }
-                require(shipmentId != UUID(0, 0)) {
-                    "Shipment ID must be valid"
-                }
-                require(status == DeviceStatus.AVAILABLE) {
-                    "Only AVAILABLE device can be set to IN_TRANSIT. Current status: $status"
-                }
-                currentShipmentId = shipmentId
-                status = newStatus
-            }
-            DeviceStatus.AVAILABLE -> {
-                require(status == DeviceStatus.IN_TRANSIT) {
-                    "Only IN_TRANSIT device can be set to AVAILABLE. Current status: $status"
-                }
-                currentShipmentId = null
-                status = newStatus
-                totalTrips += 1
-            }
-            DeviceStatus.MAINTENANCE -> {
-                require(status != DeviceStatus.IN_TRANSIT) {
-                    "Cannot set IN_TRANSIT device to MAINTENANCE. Release from shipment first."
-                }
-                status = newStatus
-            }
-            DeviceStatus.RETIRED -> {
-                require(status != DeviceStatus.IN_TRANSIT) {
-                    "Cannot set IN_TRANSIT device to RETIRED. Release from shipment first."
-                }
-                currentShipmentId = null
-                status = newStatus
-            }
-        }
     }
 
     override fun equals(other: Any?): Boolean {

@@ -1,5 +1,6 @@
 package com.example.cargotracking.common.exception
 
+import com.example.cargotracking.modules.device.exception.DeviceException
 import com.example.cargotracking.modules.order.exception.OrderException
 import com.example.cargotracking.modules.shipment.exception.ShipmentException
 import com.example.cargotracking.modules.user.exception.UserException
@@ -13,6 +14,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException
 import org.springframework.web.bind.annotation.ExceptionHandler
 import org.springframework.web.bind.annotation.RestControllerAdvice
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException
+import jakarta.persistence.OptimisticLockException
 import java.time.Instant
 
 @RestControllerAdvice
@@ -50,6 +52,11 @@ class GlobalExceptionHandler {
     fun handleConflict(ex: IllegalStateException) =
         buildResponse(HttpStatus.CONFLICT, "CONFLICT", ex.message ?: "Operation not allowed")
             .also { logger.warn("State conflict: ${ex.message}") }
+
+    @ExceptionHandler(OptimisticLockException::class)
+    fun handleOptimisticLock(ex: OptimisticLockException) =
+        buildResponse(HttpStatus.CONFLICT, "CONCURRENT_MODIFICATION", "The resource was modified by another request. Please refresh and try again.")
+            .also { logger.warn("Optimistic lock conflict: ${ex.message}") }
 
     @ExceptionHandler(AuthenticationException::class)
     fun handleUnauthorized(ex: AuthenticationException) =
@@ -156,6 +163,31 @@ class GlobalExceptionHandler {
         is ShipmentException.DeviceInvalidStateException ->
             buildResponse(HttpStatus.CONFLICT, "DEVICE_INVALID_STATE", ex.message ?: "Invalid device state")
                 .also { logger.warn("Device invalid state: ${ex.message}") }
+    }
+
+    @ExceptionHandler(DeviceException::class)
+    fun handleDeviceException(ex: DeviceException) = when (ex) {
+        is DeviceException.DeviceNotFoundException ->
+            buildResponse(HttpStatus.NOT_FOUND, "DEVICE_NOT_FOUND", ex.message ?: "Device not found")
+                .also { logger.warn("Device not found: ${ex.message}") }
+        is DeviceException.DeviceAlreadyExistsException ->
+            buildResponse(HttpStatus.CONFLICT, "DEVICE_ALREADY_EXISTS", ex.message ?: "Device already exists")
+                .also { logger.warn("Device already exists: ${ex.message}") }
+        is DeviceException.DeviceAccessDeniedException ->
+            buildResponse(HttpStatus.FORBIDDEN, "DEVICE_ACCESS_DENIED", ex.message ?: "Access denied")
+                .also { logger.warn("Device access denied: ${ex.message}") }
+        is DeviceException.DeviceInvalidStateException ->
+            buildResponse(HttpStatus.CONFLICT, "DEVICE_INVALID_STATE", ex.message ?: "Invalid device state")
+                .also { logger.warn("Device invalid state: ${ex.message}") }
+        is DeviceException.UserNotFoundException ->
+            buildResponse(HttpStatus.NOT_FOUND, "USER_NOT_FOUND", ex.message ?: "User not found")
+                .also { logger.warn("User not found: ${ex.message}") }
+        is DeviceException.InvalidUserRoleException ->
+            buildResponse(HttpStatus.BAD_REQUEST, "INVALID_USER_ROLE", ex.message ?: "Invalid user role")
+                .also { logger.warn("Invalid user role: ${ex.message}") }
+        is DeviceException.UserAccountInactiveException ->
+            buildResponse(HttpStatus.FORBIDDEN, "USER_ACCOUNT_INACTIVE", ex.message ?: "User account is not active")
+                .also { logger.warn("User account inactive: ${ex.message}") }
     }
 
     @ExceptionHandler(Exception::class)
