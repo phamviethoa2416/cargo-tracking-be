@@ -1,6 +1,5 @@
 package com.example.cargotracking.modules.shipment.service
 
-import com.example.cargotracking.common.messaging.MessagePublisher
 import com.example.cargotracking.modules.device.model.types.DeviceStatus
 import com.example.cargotracking.modules.device.repository.DeviceRepository
 import com.example.cargotracking.modules.order.service.OrderService
@@ -10,6 +9,7 @@ import com.example.cargotracking.modules.shipment.model.dto.response.ShipmentLis
 import com.example.cargotracking.modules.shipment.model.dto.response.ShipmentResponse
 import com.example.cargotracking.modules.shipment.model.entity.Shipment
 import com.example.cargotracking.modules.shipment.model.types.ShipmentStatus
+import com.example.cargotracking.modules.shipment.messaging.publisher.ShipmentPublisher
 import com.example.cargotracking.modules.shipment.repository.ShipmentRepository
 import com.example.cargotracking.modules.shipment.repository.ShipmentSpecification
 import com.example.cargotracking.modules.user.model.types.UserRole
@@ -27,7 +27,7 @@ class ShipmentService(
     private val orderService: OrderService,
     private val userRepository: UserRepository,
     private val deviceRepository: DeviceRepository,
-    private val messagePublisher: MessagePublisher
+    private val shipmentPublisher: ShipmentPublisher
 ) {
     @Transactional(readOnly = true)
     fun getShipmentById(
@@ -190,7 +190,7 @@ class ShipmentService(
         val savedShipment = shipmentRepository.save(shipment)
         deviceRepository.save(device)
 
-        messagePublisher.publishShipmentAssignment(request.deviceId, shipmentId, "assign")
+        shipmentPublisher.publishShipmentAssignment(request.deviceId, shipmentId, "assign")
         
         return ShipmentResponse.from(savedShipment)
     }
@@ -279,7 +279,7 @@ class ShipmentService(
             device.releaseFromShipment()
             deviceRepository.save(device)
 
-            messagePublisher.publishShipmentAssignment(deviceId, shipmentId, "unassign")
+            shipmentPublisher.publishShipmentAssignment(deviceId, shipmentId, "unassign")
         }
 
         val savedShipment = shipmentRepository.save(shipment)
@@ -321,7 +321,7 @@ class ShipmentService(
             device.releaseFromShipment()
             deviceRepository.save(device)
 
-            messagePublisher.publishShipmentAssignment(deviceId, shipmentId, "unassign")
+            shipmentPublisher.publishShipmentAssignment(deviceId, shipmentId, "unassign")
         }
 
         if (shipment.status !in listOf(ShipmentStatus.CREATED, ShipmentStatus.READY, ShipmentStatus.IN_TRANSIT)) {
@@ -375,7 +375,7 @@ class ShipmentService(
             device.releaseFromShipment()
             deviceRepository.save(device)
 
-            messagePublisher.publishShipmentAssignment(deviceId, shipmentId, "unassign")
+            shipmentPublisher.publishShipmentAssignment(deviceId, shipmentId, "unassign")
         }
 
         val savedShipment = shipmentRepository.save(shipment)

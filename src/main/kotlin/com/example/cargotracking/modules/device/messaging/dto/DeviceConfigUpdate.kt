@@ -1,9 +1,9 @@
-package com.example.cargotracking.common.messaging.dto
+package com.example.cargotracking.modules.device.messaging.dto
 
 import com.fasterxml.jackson.annotation.JsonProperty
 import java.util.UUID
 
-data class DeviceConfigUpdateMessage(
+data class DeviceConfigUpdate(
     @JsonProperty("message_id")
     val messageId: String,
     

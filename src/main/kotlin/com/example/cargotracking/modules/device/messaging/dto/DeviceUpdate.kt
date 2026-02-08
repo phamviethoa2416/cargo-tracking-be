@@ -1,10 +1,10 @@
-package com.example.cargotracking.common.messaging.dto
+package com.example.cargotracking.modules.device.messaging.dto
 
 import com.fasterxml.jackson.annotation.JsonProperty
 import java.time.Instant
 import java.util.UUID
 
-data class DeviceUpdateMessage(
+data class DeviceUpdate(
     @JsonProperty("message_id")
     val messageId: String,
     
@@ -31,4 +31,21 @@ data class DeviceUpdateMessage(
     
     @JsonProperty("location")
     val location: DeviceLocation?
+)
+
+data class DeviceLocation(
+    @JsonProperty("latitude")
+    val latitude: Double,
+
+    @JsonProperty("longitude")
+    val longitude: Double,
+
+    @JsonProperty("altitude")
+    val altitude: Double?,
+
+    @JsonProperty("accuracy")
+    val accuracy: Double?,
+
+    @JsonProperty("timestamp")
+    val timestamp: Instant
 )

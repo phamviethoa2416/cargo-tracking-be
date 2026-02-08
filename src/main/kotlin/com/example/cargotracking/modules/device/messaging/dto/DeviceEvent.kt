@@ -1,10 +1,10 @@
-package com.example.cargotracking.common.messaging.dto
+package com.example.cargotracking.modules.device.messaging.dto
 
 import com.fasterxml.jackson.annotation.JsonProperty
 import java.time.Instant
 import java.util.UUID
 
-data class DeviceEventMessage(
+data class DeviceEvent(
     @JsonProperty("message_id")
     val messageId: String,
     
@@ -21,7 +21,7 @@ data class DeviceEventMessage(
     val deviceId: UUID,
     
     @JsonProperty("severity")
-    val severity: String,  // INFO, WARNING, CRITICAL
+    val severity: String,
     
     @JsonProperty("description")
     val description: String?,

@@ -1,13 +1,14 @@
 package com.example.cargotracking.modules.device.service
 
-import com.example.cargotracking.common.messaging.MessagePublisher
 import com.example.cargotracking.modules.device.model.dto.request.*
 import com.example.cargotracking.modules.device.model.dto.response.*
 import com.example.cargotracking.modules.device.model.entity.Device
 import com.example.cargotracking.modules.device.model.types.DeviceStatus
 import com.example.cargotracking.modules.device.repository.DeviceRepository
 import com.example.cargotracking.modules.device.exception.DeviceException
+import com.example.cargotracking.modules.device.messaging.publisher.DevicePublisher
 import com.example.cargotracking.modules.device.repository.DeviceSpecification
+import com.example.cargotracking.modules.shipment.messaging.publisher.ShipmentPublisher
 import com.example.cargotracking.modules.user.model.types.UserRole
 import com.example.cargotracking.modules.user.repository.UserRepository
 import org.springframework.data.domain.PageRequest
@@ -22,7 +23,8 @@ import java.util.*
 class DeviceService(
     private val userRepository: UserRepository,
     private val deviceRepository: DeviceRepository,
-    private val messagePublisher: MessagePublisher
+    private val devicePublisher: DevicePublisher,
+    private val shipmentPublisher: ShipmentPublisher
 ) {
     @Transactional
     fun createDevice(
@@ -177,7 +179,7 @@ class DeviceService(
 
         val savedDevice = deviceRepository.save(device)
 
-        messagePublisher.publishDeviceConfigUpdate(savedDevice)
+        devicePublisher.publishDeviceConfigUpdate(savedDevice)
         
         return DeviceResponse.from(savedDevice)
     }
@@ -208,7 +210,7 @@ class DeviceService(
         device.assignToShipment(shipmentId)
         val savedDevice = deviceRepository.save(device)
 
-        messagePublisher.publishShipmentAssignment(deviceId, shipmentId, "assign")
+        shipmentPublisher.publishShipmentAssignment(deviceId, shipmentId, "assign")
         
         return DeviceResponse.from(savedDevice)
     }
@@ -225,7 +227,7 @@ class DeviceService(
         val savedDevice = deviceRepository.save(device)
 
         if (shipmentId != null) {
-            messagePublisher.publishShipmentAssignment(deviceId, shipmentId, "unassign")
+            shipmentPublisher.publishShipmentAssignment(deviceId, shipmentId, "unassign")
         }
         
         return DeviceResponse.from(savedDevice)

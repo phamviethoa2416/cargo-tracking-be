@@ -1,6 +1,9 @@
-package com.example.cargotracking.common.messaging
+package com.example.cargotracking.common.client.rabbitmq.config
 
-import org.springframework.amqp.core.*
+import org.springframework.amqp.core.Binding
+import org.springframework.amqp.core.BindingBuilder
+import org.springframework.amqp.core.Queue
+import org.springframework.amqp.core.TopicExchange
 import org.springframework.amqp.rabbit.config.SimpleRabbitListenerContainerFactory
 import org.springframework.amqp.rabbit.connection.ConnectionFactory
 import org.springframework.amqp.rabbit.core.RabbitTemplate
@@ -25,6 +28,12 @@ class RabbitMQConfig {
     @Value("\${rabbitmq.queue.shipment-tracking:backend.shipment.tracking}")
     private lateinit var shipmentTrackingQueue: String
 
+    @Value("\${rabbitmq.queue.device-config:backend.device.config}")
+    private lateinit var deviceConfigQueue: String
+
+    @Value("\${rabbitmq.queue.shipment-assignment:backend.shipment.assignment}")
+    private lateinit var shipmentAssignmentQueue: String
+
     @Bean
     fun cargoEventsExchange(): TopicExchange {
         return TopicExchange(exchangeName, true, false)
@@ -46,11 +55,21 @@ class RabbitMQConfig {
     }
 
     @Bean
+    fun deviceConfigQueue(): Queue {
+        return Queue(deviceConfigQueue, true, false, false)
+    }
+
+    @Bean
+    fun shipmentAssignmentQueue(): Queue {
+        return Queue(shipmentAssignmentQueue, true, false, false)
+    }
+
+    @Bean
     fun deviceEventsBinding(): Binding {
         return BindingBuilder
             .bind(deviceEventsQueue())
             .to(cargoEventsExchange())
-            .with("event.*")
+            .with("event.#")
     }
 
     @Bean
@@ -58,7 +77,15 @@ class RabbitMQConfig {
         return BindingBuilder
             .bind(deviceUpdatesQueue())
             .to(cargoEventsExchange())
-            .with("device.*")
+            .with("device.update.#")
+    }
+
+    @Bean
+    fun deviceConfigBinding(): Binding {
+        return BindingBuilder
+            .bind(deviceConfigQueue())
+            .to(cargoEventsExchange())
+            .with("device.config.update")
     }
 
     @Bean
@@ -67,6 +94,14 @@ class RabbitMQConfig {
             .bind(shipmentTrackingQueue())
             .to(cargoEventsExchange())
             .with("shipment.tracking")
+    }
+
+    @Bean
+    fun shipmentAssignmentBinding(): Binding {
+        return BindingBuilder
+            .bind(shipmentAssignmentQueue())
+            .to(cargoEventsExchange())
+            .with("device.shipment.assignment")
     }
 
     @Bean
