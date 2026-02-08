@@ -39,7 +39,7 @@ The two services communicate via **RabbitMQ** for asynchronous device event hand
 
 ### Technical Highlights
 - **Clean Architecture**: Modular, layered design with rich domain models
-- **JWT Authentication**: RSA-512 signed tokens with refresh token support
+- **JWT Authentication**: RSA-256 signed tokens with refresh token support
 - **Database Migrations**: Version-controlled schema with Flyway
 - **Message Queue**: RabbitMQ integration for async device communication
 - **API Documentation**: OpenAPI 3.0 with Swagger UI
@@ -115,7 +115,7 @@ Customer                    Provider                    Shipper
 | **Database**       | PostgreSQL 15+           |
 | **Migrations**     | Flyway                   |
 | **Message Queue**  | RabbitMQ                 |
-| **Authentication** | JWT (RSA-512)            |
+| **Authentication** | JWT (RSA-256)            |
 | **API Docs**       | OpenAPI 3.0 / Swagger UI |
 | **Build Tool**     | Gradle (Kotlin DSL)      |
 | **JDK**            | 21                       |
@@ -319,11 +319,3 @@ services:
 volumes:
   postgres_data:
 ```
-
-### Production Considerations
-
-- ⚠️ **Never commit JWT keys** to version control
-- ⚠️ Use strong, unique passwords for a database and RabbitMQ
-- ✅ Enable HTTPS in production (via reverse proxy)
-- ✅ Set appropriate CORS origins for your frontend domains
-- ✅ Configure connection pool sizes based on an expected load
