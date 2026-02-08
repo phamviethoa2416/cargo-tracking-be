@@ -19,3 +19,35 @@ data class TelemetryResponse(
     val signalStrength: Int?,
     val isMoving: Boolean?
 )
+
+data class DeviceEventResponse(
+    val deviceId: UUID,
+    val time: Instant,
+    val eventType: String,
+    val severity: String,
+    val description: String?,
+    val metadata: Map<String, Any>?
+)
+
+data class DeviceEventListResponse(
+    val deviceId: UUID,
+    val events: List<DeviceEventResponse>,
+    val total: Int
+)
+
+data class LocationResponse(
+    val deviceId: UUID,
+    val time: Instant,
+    val latitude: Double,
+    val longitude: Double,
+    val altitude: Double?,
+    val speed: Double?,
+    val heading: Double?,
+    val accuracy: Double?
+)
+
+data class LocationHistoryResponse(
+    val deviceId: UUID,
+    val locations: List<LocationResponse>,
+    val total: Int
+)
